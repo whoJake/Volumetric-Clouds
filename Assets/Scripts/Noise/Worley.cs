@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -13,7 +12,6 @@ public class Worley : Generator {
     public float frequency;
 
     public bool refresh;
-    public bool auto;
 
     private Texture2D noiseImage;
 
@@ -39,13 +37,38 @@ public class Worley : Generator {
         }
     }
 
-    void Start()
-    {
-        Generate();
+    void Start() {
+
+        RebuildTextures(outputDimensions);
+        float[,] buffer1 = Generate(outputDimensions, seed, frequency);
+        float[,] buffer2 = Generate(outputDimensions, seed, frequency * 2);
+        float[,] buffer3 = Generate(outputDimensions, seed, frequency * 4);
+
+        for (int x = 0; x < outputDimensions.x; x++) {
+            for(int y = 0; y < outputDimensions.y; y++) {
+
+                //Temporary fractal implementation
+                float val1 = invert ? 1 - buffer1[x, y] : buffer1[x, y];
+                float val2 = invert ? 1 - buffer2[x, y] : buffer2[x, y];
+                float val3 = invert ? 1 - buffer3[x, y] : buffer3[x, y];
+
+                val1 *= 1f;
+                val2 *= 0.5f;
+                val3 *= 0.25f;
+
+                float val = (val1 + val2 + val3) / 1.75f;
+
+                Color input = new Color(val, val, val, 1);
+                noiseImage.SetPixel(x, y, input);
+            }
+        }
+
+        Apply();
     }
 
-    void Generate() {
-        RebuildTextures(outputDimensions);
+    float[,] Generate(Vector2Int imageSize, int seed, float frequency) {
+
+        float[,] imgbuffer = new float[imageSize.x, imageSize.y];
 
         //Frequency of 1 converts to a 2x2 grid
         int gridSize = Mathf.CeilToInt(frequency * 2);
@@ -86,12 +109,11 @@ public class Worley : Generator {
 
                 //Normalize the distance
                 float val = closestDistance / (gridPixelSize.x > gridPixelSize.y ? gridPixelSize.x : gridPixelSize.y);
-                val = invert ? 1 - val : val;
-                noiseImage.SetPixel(x, y, new UnityEngine.Color(val, val, val, 1));
+                imgbuffer[x, y] = val;
             }
         }
 
-        Apply();
+        return imgbuffer;
     }
 
     void RebuildTextures(Vector2Int outputDimensions) {
@@ -116,14 +138,7 @@ public class Worley : Generator {
     void Update() {
         if (refresh) {
             refresh = false;
-            Generate();
+            Start();
         }
     }
-
-    void OnValidate() {
-        if (auto) {
-            Generate();
-        }
-    }
-
 }
