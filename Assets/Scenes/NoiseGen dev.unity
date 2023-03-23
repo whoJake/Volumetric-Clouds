@@ -471,10 +471,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 8400000, guid: 619c50fe8ff048940bbb455ba628c306, type: 2}
-  outputDimensions: {x: 512, y: 512}
+  outputDimensions: {x: 256, y: 256}
   invert: 0
   seed: 651
-  frequency: 2
+  frequency: 4
+  octaves: 3
+  persistance: 0.5
+  lacunarity: 2
   refresh: 0
 --- !u!1 &1342626925
 GameObject:
