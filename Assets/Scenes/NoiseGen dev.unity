@@ -471,11 +471,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 8400000, guid: 619c50fe8ff048940bbb455ba628c306, type: 2}
-  outputDimensions: {x: 256, y: 256}
+  outputDimensions: {x: 64, y: 64}
   invert: 0
   seed: 651
-  frequency: 4
-  octaves: 3
+  frequency: 2
+  octaves: 4
   persistance: 0.5
   lacunarity: 2
   refresh: 0

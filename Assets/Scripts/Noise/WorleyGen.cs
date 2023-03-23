@@ -10,11 +10,11 @@ public static class WorleyGen
 
         //Find size of grid that needs to be created
         //frequency will arbitrarily translate to 128 pixels
-        int cellSize = Mathf.CeilToInt(128 / frequency);
+        float cellSize = 128 / frequency;
 
         //Find how many cells need to be calculated on each dimension
-        int gridSizeX = Mathf.CeilToInt(sizeX / (float)cellSize);
-        int gridSizeY = Mathf.CeilToInt(sizeY / (float)cellSize);
+        int gridSizeX = Mathf.CeilToInt(sizeX / cellSize);
+        int gridSizeY = Mathf.CeilToInt(sizeY / cellSize);
 
         //Calculate a point inside each of these cells
         //A point is a vector that points from the top left corner of the cell to the point
@@ -36,8 +36,8 @@ public static class WorleyGen
                 Vector2 pixel = new Vector2(x, y);
 
                 //Find grid
-                int gridLocX = Mathf.FloorToInt(x / (float)cellSize);
-                int gridLocY = Mathf.FloorToInt(y / (float)cellSize);
+                int gridLocX = Mathf.FloorToInt(x / cellSize);
+                int gridLocY = Mathf.FloorToInt(y / cellSize);
 
 
                 float nearestDist = float.PositiveInfinity;
@@ -100,12 +100,12 @@ public static class WorleyGen
 
         //Find size of grid that needs to be created
         //frequency will arbitrarily translate to 128 pixels
-        int cellSize = Mathf.CeilToInt(128 / frequency);
+        float cellSize = 128 / frequency;
 
         //Find how many cells need to be calculated on each dimension
-        int gridSizeX = Mathf.CeilToInt(sizeX / (float)cellSize);
-        int gridSizeY = Mathf.CeilToInt(sizeY / (float)cellSize);
-        int gridSizeZ = Mathf.CeilToInt(sizeZ / (float)cellSize);
+        int gridSizeX = Mathf.CeilToInt(sizeX / cellSize);
+        int gridSizeY = Mathf.CeilToInt(sizeY / cellSize);
+        int gridSizeZ = Mathf.CeilToInt(sizeZ / cellSize);
 
         //Calculate a point inside each of these cells
         //A point is a vector that points from the top left corner of the cell to the point
@@ -130,9 +130,9 @@ public static class WorleyGen
                     Vector3 pixel = new Vector3(x, y, z);
 
                     //Find grid
-                    int gridLocX = Mathf.FloorToInt(x / (float)cellSize);
-                    int gridLocY = Mathf.FloorToInt(y / (float)cellSize);
-                    int gridLocZ = Mathf.FloorToInt(z / (float)cellSize);
+                    int gridLocX = Mathf.FloorToInt(x / cellSize);
+                    int gridLocY = Mathf.FloorToInt(y / cellSize);
+                    int gridLocZ = Mathf.FloorToInt(z / cellSize);
 
                     float nearestDist = float.PositiveInfinity;
                     //Check neighbours
