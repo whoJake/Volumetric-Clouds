@@ -87,10 +87,19 @@ Shader "Volumetric/Base"
                 float dstInsideBox = max(0, dstB - dstToBox);
                 return float2(dstToBox, dstInsideBox);
             }
+
+            
             
             float3 boxmin;
             float3 boxmax;
-            //uint divisions;
+            #define MAX_STEPS 64
+            int steps;
+
+            float3 WorldSpaceToSamplePos(float3 pos){
+                return (pos - boxmin) / (boxmax - boxmin);
+            }
+
+            sampler3D cloudTexture;
 
             fixed4 frag (v2f i, UNITY_VPOS_TYPE vpos : VPOS) : SV_Target
             {
@@ -105,11 +114,34 @@ Shader "Volumetric/Base"
                 float2 boxinfo = RayBoxIntersect(boxmin, boxmax, rayOrigin, 1/rayDir);
                 ManualZTest(screenUV, boxinfo.x);
 
+                //TODO
+                //Ensure sample points are always the same even if inside the cube
+                //See if average opacity or additive (probably additive)
+                //Add perlin ontop
+                //Blue noise
+                //Lighting
+                //Refraction
+                //Move this outside of the fragment function (ease to read)
+                float3 sampleWorldPos = _WorldSpaceCameraPos + (rayDir * boxinfo.x);
+                steps = min(min(2, steps), MAX_STEPS);
+
+                float stepLength = boxinfo.y / steps;
+                float opacity = 0;
+
+                for(int step = 0; step < steps + 1; step++){
+                    float3 samplePos = WorldSpaceToSamplePos(sampleWorldPos);
+                    float sampleDensity = tex3D(cloudTexture, samplePos);
+                    sampleDensity = max(0, sampleDensity - 0.2f);
+                    opacity += sampleDensity;
+
+                    sampleWorldPos += rayDir * stepLength;
+                }
+
                 float maxDst = length(boxmax - boxmin);
 
                 float val = boxinfo.y / maxDst;
                 
-                fixed4 col = fixed4(rayDir, val);
+                fixed4 col = fixed4(1, 1, 1, opacity / steps);
                 return col;
             }
             ENDCG

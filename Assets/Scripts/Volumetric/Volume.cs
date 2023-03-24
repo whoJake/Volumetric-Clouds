@@ -8,7 +8,18 @@ using System.Linq;
 public class Volume : MonoBehaviour
 {
     public Shader shader;
+    public ComputeShader copyShader;
+    public RenderTexture cloudTexture;
     Material material;
+
+    public int cloudResolution;
+    public int seed;
+    public int octaves;
+    public float frequency;
+    public float persistance;
+    public float lacunarity;
+
+    public int steps;
 
     public bool setup;
     public bool update;
@@ -19,9 +30,13 @@ public class Volume : MonoBehaviour
         Camera.main.depthTextureMode = DepthTextureMode.Depth;
         GetComponent<MeshFilter>().sharedMesh = DefaultCube();
 
+        float[,,] cloudNoise = WorleyGen.Generate3DFractal(cloudResolution, cloudResolution, cloudResolution, seed, octaves, frequency, persistance, lacunarity);
+        cloudTexture = TextureHelper.FloatArrayToTexture3D(copyShader, cloudNoise, cloudResolution);
+
         material = new Material(shader);
 
         GetComponent<MeshRenderer>().material = material;
+        SetMaterialProperties();
     }
 
     void SetMaterialProperties() {
@@ -32,6 +47,8 @@ public class Volume : MonoBehaviour
 
         material.SetVector("boxmin", boxmin);
         material.SetVector("boxmax", boxmax);
+        material.SetInt("steps", steps);
+        material.SetTexture("cloudTexture", cloudTexture);
     }
 
     void InvertMesh() {

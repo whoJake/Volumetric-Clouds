@@ -137,7 +137,6 @@ public static class PerlinGen
 
         Vector3 overshoot = new Vector3(gridSizeX * cellSize - sizeX, gridSizeY * cellSize - sizeY, gridSizeZ * cellSize - sizeZ);
         overshoot /= 2f;
-        MonoBehaviour.print(overshoot);
 
         //Generate random vectors on these intervals
         Random.InitState(seed);
