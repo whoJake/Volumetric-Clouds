@@ -8,7 +8,7 @@ public static class PerlinGen
         float[,] buffer = new float[sizeX, sizeY];
 
         //Find number of intervals that need to be calculated
-        //"integer" interval arbitrarily set to 128 pixels
+        //interval arbitrarily set using sizeX, in reality texture is probably square so doesn't matter
         int cellSize = Mathf.CeilToInt(sizeX / frequency);
 
         MonoBehaviour.print("Cell size : " + cellSize);
@@ -128,8 +128,8 @@ public static class PerlinGen
         float[,,] buffer = new float[sizeX, sizeY, sizeZ];
 
         //Find number of intervals that need to be calculated
-        //"integer" interval arbitrarily set to 128 pixels
-        float cellSize = 128 / frequency;
+        //interval arbitrarily set using sizeX, in reality texture is probably square so doesn't matter
+        int cellSize = Mathf.CeilToInt(sizeX / frequency);
 
         int gridSizeX = Mathf.CeilToInt(sizeX / (float)cellSize);
         int gridSizeY = Mathf.CeilToInt(sizeY / (float)cellSize);
