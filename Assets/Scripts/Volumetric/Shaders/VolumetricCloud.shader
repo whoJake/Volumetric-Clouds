@@ -94,12 +94,30 @@ Shader "Volumetric/Base"
             float3 boxmax;
             #define MAX_STEPS 64
             int steps;
+            
+            sampler3D cloudTexture;
 
             float3 WorldSpaceToSamplePos(float3 pos){
                 return (pos - boxmin) / (boxmax - boxmin);
             }
 
-            sampler3D cloudTexture;
+            float TakeSteps(float3 origin, float3 dir, float stepSize, int steps){
+                float3 currentStepPos = origin;
+                float3 stepVec = dir * stepSize;
+
+                float pixel = 0;
+
+                for(int i = 0; i < steps; i++){
+                    float3 samplePos = WorldSpaceToSamplePos(currentStepPos);
+                    float density = tex3D(cloudTexture, samplePos);
+
+                    pixel += max(0, density - 0.15f);;
+
+                    currentStepPos += stepVec;
+                }
+
+                return pixel;
+            }
 
             fixed4 frag (v2f i, UNITY_VPOS_TYPE vpos : VPOS) : SV_Target
             {
@@ -121,27 +139,11 @@ Shader "Volumetric/Base"
                 //Blue noise
                 //Lighting
                 //Refraction
-                //Move this outside of the fragment function (ease to read)
-                float3 sampleWorldPos = _WorldSpaceCameraPos + (rayDir * boxinfo.x);
-                steps = min(min(2, steps), MAX_STEPS);
+                //Move this outside of the fragment function (ease to read) DONE
 
-                float stepLength = boxinfo.y / steps;
-                float opacity = 0;
-
-                for(int step = 0; step < steps + 1; step++){
-                    float3 samplePos = WorldSpaceToSamplePos(sampleWorldPos);
-                    float sampleDensity = tex3D(cloudTexture, samplePos);
-                    sampleDensity = max(0, sampleDensity - 0.2f);
-                    opacity += sampleDensity;
-
-                    sampleWorldPos += rayDir * stepLength;
-                }
-
-                float maxDst = length(boxmax - boxmin);
-
-                float val = boxinfo.y / maxDst;
+                float val = TakeSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / (float)steps, steps);
                 
-                fixed4 col = fixed4(1, 1, 1, opacity / steps);
+                fixed4 col = fixed4(1, 1, 1, val / steps);
                 return col;
             }
             ENDCG
