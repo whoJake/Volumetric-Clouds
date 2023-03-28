@@ -12,6 +12,8 @@ public class Volume : MonoBehaviour
     public RenderTexture cloudTexture;
     Material material;
 
+    public Vector3 cloudScale = Vector3.one;
+    public Vector3 cloudOffset;
     public int cloudResolution;
     public int seed;
     public int octaves;
@@ -23,6 +25,7 @@ public class Volume : MonoBehaviour
 
     public bool setup;
     public bool update;
+    public bool auto;
     bool invert;
 
     void Start()
@@ -45,6 +48,8 @@ public class Volume : MonoBehaviour
         Vector3 boxmin = transform.position - (transform.localScale / 2f);
         Vector3 boxmax = transform.position + (transform.localScale / 2f);
 
+        material.SetVector("cloud_scale", cloudScale);
+        material.SetVector("cloud_offset", cloudOffset);
         material.SetVector("boxmin", boxmin);
         material.SetVector("boxmax", boxmax);
         material.SetInt("steps", steps);
@@ -95,6 +100,9 @@ public class Volume : MonoBehaviour
         if (invert) {
             invert = false;
             InvertMesh();
+        }
+        if (auto) {
+            SetMaterialProperties();
         }
     }
 

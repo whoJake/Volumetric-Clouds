@@ -59,6 +59,18 @@ Shader "Volumetric/Base"
                 return o;
             }
 
+            //Variables
+            float3 boxmin;
+            float3 boxmax;
+
+            #define MAX_STEPS 64
+            int steps;
+
+            sampler3D cloudTexture;
+            float3 cloud_scale;
+            float3 cloud_offset;
+
+
             //Manual ZTest since back faces are rendered but still want objects infront of the cube to block it
             void ManualZTest(float2 uv, float boxdst){
                 float3 viewPixelPos = viewSpacePosAtScreenUV(uv);
@@ -66,6 +78,18 @@ Shader "Volumetric/Base"
                 float worldPixelDist = length(worldPixelPos - _WorldSpaceCameraPos);
 
                 clip(worldPixelDist - boxdst);
+            }
+
+            float3 WorldSpaceToSamplePos(float3 pos){
+                return (pos - boxmin) / (boxmax - boxmin);
+            }
+
+            float SampleTexture(float3 worldPos){
+                float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
+                float3 sampleTexPos = WorldSpaceToSamplePos(sampleWorldPos);
+                float value = tex3D(cloudTexture, frac(sampleTexPos));
+
+                return value;
             }
 
             //Returns (distToBox, dstThroughBox) taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
@@ -88,35 +112,24 @@ Shader "Volumetric/Base"
                 return float2(dstToBox, dstInsideBox);
             }
 
-            
-            
-            float3 boxmin;
-            float3 boxmax;
-            #define MAX_STEPS 64
-            int steps;
-            
-            sampler3D cloudTexture;
-
-            float3 WorldSpaceToSamplePos(float3 pos){
-                return (pos - boxmin) / (boxmax - boxmin);
-            }
 
             float TakeSteps(float3 origin, float3 dir, float stepSize, int steps){
                 float3 currentStepPos = origin;
                 float3 stepVec = dir * stepSize;
 
-                float pixel = 0;
+                float totalDensity = 0;
 
                 for(int i = 0; i < steps; i++){
-                    float3 samplePos = WorldSpaceToSamplePos(currentStepPos);
-                    float density = tex3D(cloudTexture, samplePos);
+                    float density = SampleTexture(currentStepPos);
+                    density = max(0, density - 0.25);
 
-                    pixel += max(0, density - 0.15f);;
+                    //*stepSize makes sure the density is normalized for steps
+                    totalDensity += density * stepSize;
 
                     currentStepPos += stepVec;
                 }
 
-                return pixel;
+                return totalDensity;
             }
 
             fixed4 frag (v2f i, UNITY_VPOS_TYPE vpos : VPOS) : SV_Target
@@ -133,17 +146,21 @@ Shader "Volumetric/Base"
                 ManualZTest(screenUV, boxinfo.x);
 
                 //TODO
-                //Ensure sample points are always the same even if inside the cube
-                //See if average opacity or additive (probably additive)
+                //Ensure sample points are always the same even if inside the cube DONE
+                //See if average opacity or additive (probably additive) DONE -> EXP
+                //Add sun color
                 //Add perlin ontop
-                //Blue noise
+                //Blue noise on starting position of raymarch
                 //Lighting
-                //Refraction
+                //Henyey-Greenstein scattering
                 //Move this outside of the fragment function (ease to read) DONE
 
                 float val = TakeSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / (float)steps, steps);
+
+                //e^(-x) transformation
+                float transmittance = exp(-val);
                 
-                fixed4 col = fixed4(1, 1, 1, val / steps);
+                fixed4 col = fixed4(1, 1, 1, 1 - transmittance);
                 return col;
             }
             ENDCG
