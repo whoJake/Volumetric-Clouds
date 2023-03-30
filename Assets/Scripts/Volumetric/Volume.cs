@@ -54,6 +54,7 @@ public class Volume : MonoBehaviour
         material.SetVector("boxmax", boxmax);
         material.SetInt("steps", steps);
         material.SetTexture("cloudTexture", cloudTexture);
+        material.SetFloat("worldTexSize", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
     }
 
     void InvertMesh() {

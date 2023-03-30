@@ -59,6 +59,18 @@ Shader "Volumetric/Base"
                 return o;
             }
 
+            //TO DO LIST
+            //Add sun color
+            //Add perlin ontop
+            //Make texture more advanced to help with tiling being visible at lower scales
+            //Blue noise on starting position of raymarch
+            //Lighting
+            //Henyey-Greenstein scattering
+            //Steps are visible using current occlusion method
+
+            //Offload texture creation to GPU (VERY SLOW ATM)
+
+
             //Variables
             float3 boxmin;
             float3 boxmax;
@@ -67,21 +79,35 @@ Shader "Volumetric/Base"
             int steps;
 
             sampler3D cloudTexture;
+            float worldTexSize;
             float3 cloud_scale;
             float3 cloud_offset;
 
+            float depthTextureDistance;
 
-            //Manual ZTest since back faces are rendered but still want objects infront of the cube to block it
-            void ManualZTest(float2 uv, float boxdst){
+            void CalculateDepthTextureDistance(float2 uv){
                 float3 viewPixelPos = viewSpacePosAtScreenUV(uv);
                 float3 worldPixelPos = mul(unity_CameraToWorld, float4(viewPixelPos.xy, -viewPixelPos.z, 1.0)).xyz;
-                float worldPixelDist = length(worldPixelPos - _WorldSpaceCameraPos);
+                depthTextureDistance = length(worldPixelPos - _WorldSpaceCameraPos);
+            }
 
-                clip(worldPixelDist - boxdst);
+            bool OccludedByDepthTexture(float3 position){
+                float distance = length(position - _WorldSpaceCameraPos);
+                return (distance > depthTextureDistance);
+            }
+
+            //Manual ZTest since back faces are rendered but still want objects infront of the cube to block it
+            void ManualZTestBox(float boxdst){
+                clip(depthTextureDistance - boxdst);
             }
 
             float3 WorldSpaceToSamplePos(float3 pos){
-                return (pos - boxmin) / (boxmax - boxmin);
+                //centres texture on middle of volume
+                float3 boxCentre = boxmin + ((boxmax - boxmin) / 2);
+                float3 worldTexCornerMin = boxCentre - (float3(worldTexSize, worldTexSize, worldTexSize) / 2);
+                float3 worldTexCornerMax = worldTexCornerMin + float3(worldTexSize, worldTexSize, worldTexSize);
+
+                return (pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin);
             }
 
             float SampleTexture(float3 worldPos){
@@ -112,25 +138,37 @@ Shader "Volumetric/Base"
                 return float2(dstToBox, dstInsideBox);
             }
 
-
             float TakeSteps(float3 origin, float3 dir, float stepSize, int steps){
                 float3 currentStepPos = origin;
                 float3 stepVec = dir * stepSize;
 
                 float totalDensity = 0;
 
+                //I can't break out of the loop since I get errors to do with texture sampling inside varying size for loop
+                //This kind of works around it by just nullifying the results if they are being occluded, but they are still calculated...
+                float isOccludedMultiplier = 1;
+
                 for(int i = 0; i < steps; i++){
+
+                    //Checks the position to see if it is being occluded by depth texture 
+                    if(OccludedByDepthTexture(currentStepPos)){
+                       isOccludedMultiplier = 0;
+                    }
+
                     float density = SampleTexture(currentStepPos);
                     density = max(0, density - 0.25);
 
                     //*stepSize makes sure the density is normalized for steps
-                    totalDensity += density * stepSize;
+                    totalDensity += density * stepSize * isOccludedMultiplier;
 
                     currentStepPos += stepVec;
+                    
                 }
 
                 return totalDensity;
             }
+
+
 
             fixed4 frag (v2f i, UNITY_VPOS_TYPE vpos : VPOS) : SV_Target
             {
@@ -143,17 +181,12 @@ Shader "Volumetric/Base"
                 float3 rayDir = normalize(vecToPixel);
 
                 float2 boxinfo = RayBoxIntersect(boxmin, boxmax, rayOrigin, 1/rayDir);
-                ManualZTest(screenUV, boxinfo.x);
 
-                //TODO
-                //Ensure sample points are always the same even if inside the cube DONE
-                //See if average opacity or additive (probably additive) DONE -> EXP
-                //Add sun color
-                //Add perlin ontop
-                //Blue noise on starting position of raymarch
-                //Lighting
-                //Henyey-Greenstein scattering
-                //Move this outside of the fragment function (ease to read) DONE
+                CalculateDepthTextureDistance(screenUV);
+
+                //Does initial clipping of pixel if the bounding box is occluded by opaque objects
+                //Calls clip() so will avoid taking steps if it doesnt have to
+                ManualZTestBox(boxinfo.x);
 
                 float val = TakeSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / (float)steps, steps);
 
