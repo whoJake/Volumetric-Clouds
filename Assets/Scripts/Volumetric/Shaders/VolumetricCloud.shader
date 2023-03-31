@@ -60,29 +60,38 @@ Shader "Volumetric/Base"
             }
 
             //TO DO LIST
-            //Add sun color
             //Add perlin ontop
             //Make texture more advanced to help with tiling being visible at lower scales
             //Blue noise on starting position of raymarch
-            //Lighting
             //Henyey-Greenstein scattering
             //Steps are visible using current occlusion method
+            //Fix some lighting issues
+            //Add brighter highlights around sun
+            //Fading result on edge of bounding box to avoid sharp cutoffs
+            //Look at converting to while loop so that it can be broken out of and improve performance (performance is always same for same number of pixels, no matter the density of cloud)
+            //Variable steplength to improve performance
 
             //Offload texture creation to GPU (VERY SLOW ATM)
 
 
-            //Variables
+            //Uniforms
             float3 boxmin;
             float3 boxmax;
 
             #define MAX_STEPS 64
-            int steps;
+            int viewSteps;
+            int lightSteps;
+            fixed4 lightColor;
+            float lightStrength;
+            float maxShadowValue;
 
             sampler3D cloudTexture;
             float worldTexSize;
             float3 cloud_scale;
             float3 cloud_offset;
+            float cloud_coverage_threshold;
 
+            //Globals
             float depthTextureDistance;
 
             void CalculateDepthTextureDistance(float2 uv){
@@ -138,34 +147,56 @@ Shader "Volumetric/Base"
                 return float2(dstToBox, dstInsideBox);
             }
 
-            float TakeSteps(float3 origin, float3 dir, float stepSize, int steps){
+            float TakeLightSteps(float3 origin, float3 dir, float stepSize, int steps){
                 float3 currentStepPos = origin;
                 float3 stepVec = dir * stepSize;
 
                 float totalDensity = 0;
+
+                for(int i = 0; i < steps; i++){
+                    float density  = SampleTexture(currentStepPos);
+                    totalDensity += density * stepSize;
+
+                    currentStepPos += stepVec;
+                }
+
+                float transmittance = exp(-totalDensity);
+                return transmittance;
+            }
+            //Returns float2.x transmittance, float2.y lightEnergy
+            float2 TakeViewSteps(float3 origin, float3 dir, float stepSize, int steps){
+                float3 currentStepPos = origin;
+                float3 stepVec = dir * stepSize;
+
+                float transmittance = 1;
+                float lightEnergy = 0;
 
                 //I can't break out of the loop since I get errors to do with texture sampling inside varying size for loop
                 //This kind of works around it by just nullifying the results if they are being occluded, but they are still calculated...
                 float isOccludedMultiplier = 1;
 
                 for(int i = 0; i < steps; i++){
-
+                    
+                    isOccludedMultiplier = OccludedByDepthTexture(currentStepPos) ? 0 : 1;
                     //Checks the position to see if it is being occluded by depth texture 
-                    if(OccludedByDepthTexture(currentStepPos)){
-                       isOccludedMultiplier = 0;
-                    }
-
+                    
                     float density = SampleTexture(currentStepPos);
-                    density = max(0, density - 0.25);
+
+                    float3 lightDir = _WorldSpaceLightPos0.xyz;
+                    float2 lightBoxInfo = RayBoxIntersect(boxmin, boxmax, currentStepPos, 1/lightDir);
+                    float lightTransmittance = TakeLightSteps(currentStepPos, lightDir, lightBoxInfo.y / lightSteps, lightSteps);
+
+                    lightEnergy += density * stepSize * transmittance * lightTransmittance * isOccludedMultiplier;
+
+                    density = max(0, density - cloud_coverage_threshold);
 
                     //*stepSize makes sure the density is normalized for steps
-                    totalDensity += density * stepSize * isOccludedMultiplier;
-
-                    currentStepPos += stepVec;
+                    transmittance *= exp(-density * stepSize * isOccludedMultiplier);
                     
+                    currentStepPos += stepVec;
                 }
 
-                return totalDensity;
+                return float2(transmittance, lightEnergy);
             }
 
 
@@ -188,12 +219,15 @@ Shader "Volumetric/Base"
                 //Calls clip() so will avoid taking steps if it doesnt have to
                 ManualZTestBox(boxinfo.x);
 
-                float val = TakeSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / (float)steps, steps);
+                float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / viewSteps, viewSteps);
+                float lightEnergy = max(cloudInfo.y, 1 - maxShadowValue);
+                //float lightEnergy = cloudInfo.y;
 
-                //e^(-x) transformation
-                float transmittance = exp(-val);
-                
-                fixed4 col = fixed4(1, 1, 1, 1 - transmittance);
+                fixed3 highlightColor = lerp(fixed3(1, 1, 1), lightColor.xyz, 1);
+                fixed3 lightedColor = highlightColor * lightEnergy * lightStrength;
+                fixed3 clampedColor = min(lightedColor, fixed3(1, 1, 1));
+
+                fixed4 col = fixed4(clampedColor, 1 - cloudInfo.x);
                 return col;
             }
             ENDCG

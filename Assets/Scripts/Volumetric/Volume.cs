@@ -14,6 +14,8 @@ public class Volume : MonoBehaviour
 
     public Vector3 cloudScale = Vector3.one;
     public Vector3 cloudOffset;
+    [Range(0f, 1f)]
+    public float cloudCoverage;
     public int cloudResolution;
     public int seed;
     public int octaves;
@@ -22,6 +24,14 @@ public class Volume : MonoBehaviour
     public float lacunarity;
 
     public int steps;
+
+    [Header("Lighting")]
+    public int lightSteps;
+    public Color lightColor;
+    [Range(0f, 1f)]
+    public float lightStrength;
+    [Range(0f, 1f)]
+    public float maxShadowValue;
 
     public bool setup;
     public bool update;
@@ -50,9 +60,14 @@ public class Volume : MonoBehaviour
 
         material.SetVector("cloud_scale", cloudScale);
         material.SetVector("cloud_offset", cloudOffset);
+        material.SetFloat("cloud_coverage_threshold", cloudCoverage);
         material.SetVector("boxmin", boxmin);
         material.SetVector("boxmax", boxmax);
-        material.SetInt("steps", steps);
+        material.SetInt("viewSteps", steps);
+        material.SetInt("lightSteps", lightSteps);
+        material.SetColor("lightColor", lightColor);
+        material.SetFloat("lightStrength", lightStrength);
+        material.SetFloat("maxShadowValue", maxShadowValue);
         material.SetTexture("cloudTexture", cloudTexture);
         material.SetFloat("worldTexSize", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
     }
