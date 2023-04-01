@@ -42,7 +42,8 @@ public class Volume : MonoBehaviour
     {
         Camera.main.depthTextureMode = DepthTextureMode.Depth;
         GetComponent<MeshFilter>().sharedMesh = DefaultCube();
-
+        
+        //Generate cloud texture
         float[,,] cloudNoise = WorleyGen.Generate3DFractal(cloudResolution, cloudResolution, cloudResolution, seed, octaves, frequency, persistance, lacunarity);
         cloudTexture = TextureHelper.FloatArrayToTexture3D(copyShader, cloudNoise, cloudResolution);
 

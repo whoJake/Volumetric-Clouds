@@ -70,6 +70,10 @@ Shader "Volumetric/Base"
             //Fading result on edge of bounding box to avoid sharp cutoffs
             //Look at converting to while loop so that it can be broken out of and improve performance (performance is always same for same number of pixels, no matter the density of cloud)
             //Variable steplength to improve performance
+            //Remap when changing shadows instead of cutoff (may improve clarity when using shadow cutoff)
+            //Only do light calculations when sampled density > 0
+            //Rework stepsize to increase slowely when density = 0, described in https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
+            //Stop sampling density and doing light calculations when opacity is close to already being fully opaque as resulting calculations will have little effect on pixel value
 
             //Offload texture creation to GPU (VERY SLOW ATM)
 
@@ -224,6 +228,7 @@ Shader "Volumetric/Base"
                 float lightEnergy = cloudInfo.y;
 
                 fixed3 highlightColor = _LightColor0.xyz;
+                //fixed3 highlightColor = 0;
                 fixed3 shadowColor = _ShadowColor.xyz;
 
                 //lightEnergy (and therefore lightEnergy * lightStrength) should be between 0-1 so it can be used to lerp between shadow and highlight colors
