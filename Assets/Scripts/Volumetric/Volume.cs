@@ -27,11 +27,11 @@ public class Volume : MonoBehaviour
 
     [Header("Lighting")]
     public int lightSteps;
-    public Color lightColor;
+    public Color shadowColor;
     [Range(0f, 1f)]
     public float lightStrength;
     [Range(0f, 1f)]
-    public float maxShadowValue;
+    public float shadowCutoffThreshold;
 
     public bool setup;
     public bool update;
@@ -63,13 +63,13 @@ public class Volume : MonoBehaviour
         material.SetFloat("cloud_coverage_threshold", cloudCoverage);
         material.SetVector("boxmin", boxmin);
         material.SetVector("boxmax", boxmax);
-        material.SetInt("viewSteps", steps);
-        material.SetInt("lightSteps", lightSteps);
-        material.SetColor("lightColor", lightColor);
-        material.SetFloat("lightStrength", lightStrength);
-        material.SetFloat("maxShadowValue", maxShadowValue);
-        material.SetTexture("cloudTexture", cloudTexture);
-        material.SetFloat("worldTexSize", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
+        material.SetInt("view_steps", steps);
+        material.SetInt("light_steps", lightSteps);
+        material.SetColor("_ShadowColor", shadowColor);
+        material.SetFloat("light_strength", lightStrength);
+        material.SetFloat("shadow_cutoff", shadowCutoffThreshold);
+        material.SetTexture("_CloudTexture", cloudTexture);
+        material.SetFloat("world_tex_size", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
     }
 
     void InvertMesh() {

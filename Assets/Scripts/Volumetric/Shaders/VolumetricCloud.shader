@@ -6,7 +6,7 @@ Shader "Volumetric/Base"
     }
     SubShader
     {
-            Tags { "RenderType"="Transparent" "Queue"="Transparent+1" }
+            Tags { "RenderType"="Transparent" "Queue"="Transparent+1" LightMode=ForwardBase }
 
         Pass
         {
@@ -21,6 +21,7 @@ Shader "Volumetric/Base"
             #pragma target 3.0
 
             #include "UnityCG.cginc"
+            #include "Lighting.cginc"
 
             //Fixed clipping issues thanks to this code
             //I dont really understand it but thank god it exists
@@ -64,9 +65,8 @@ Shader "Volumetric/Base"
             //Make texture more advanced to help with tiling being visible at lower scales
             //Blue noise on starting position of raymarch
             //Henyey-Greenstein scattering
-            //Steps are visible using current occlusion method
-            //Fix some lighting issues
             //Add brighter highlights around sun
+            //Steps are visible using current occlusion method
             //Fading result on edge of bounding box to avoid sharp cutoffs
             //Look at converting to while loop so that it can be broken out of and improve performance (performance is always same for same number of pixels, no matter the density of cloud)
             //Variable steplength to improve performance
@@ -79,14 +79,14 @@ Shader "Volumetric/Base"
             float3 boxmax;
 
             #define MAX_STEPS 64
-            int viewSteps;
-            int lightSteps;
-            fixed4 lightColor;
-            float lightStrength;
-            float maxShadowValue;
+            int view_steps;
+            int light_steps;
+            fixed4 _ShadowColor;
+            float light_strength;
+            float shadow_cutoff;
 
-            sampler3D cloudTexture;
-            float worldTexSize;
+            sampler3D _CloudTexture;
+            float world_tex_size;
             float3 cloud_scale;
             float3 cloud_offset;
             float cloud_coverage_threshold;
@@ -113,8 +113,8 @@ Shader "Volumetric/Base"
             float3 WorldSpaceToSamplePos(float3 pos){
                 //centres texture on middle of volume
                 float3 boxCentre = boxmin + ((boxmax - boxmin) / 2);
-                float3 worldTexCornerMin = boxCentre - (float3(worldTexSize, worldTexSize, worldTexSize) / 2);
-                float3 worldTexCornerMax = worldTexCornerMin + float3(worldTexSize, worldTexSize, worldTexSize);
+                float3 worldTexCornerMin = boxCentre - (float3(world_tex_size, world_tex_size, world_tex_size) / 2);
+                float3 worldTexCornerMax = worldTexCornerMin + float3(world_tex_size, world_tex_size, world_tex_size);
 
                 return (pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin);
             }
@@ -122,9 +122,9 @@ Shader "Volumetric/Base"
             float SampleTexture(float3 worldPos){
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
                 float3 sampleTexPos = WorldSpaceToSamplePos(sampleWorldPos);
-                float value = tex3D(cloudTexture, frac(sampleTexPos));
+                float value = tex3D(_CloudTexture, frac(sampleTexPos));
 
-                return value;
+                return max(0, value - cloud_coverage_threshold);
             }
 
             //Returns (distToBox, dstThroughBox) taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
@@ -163,7 +163,10 @@ Shader "Volumetric/Base"
                 float transmittance = exp(-totalDensity);
                 return transmittance;
             }
+
             //Returns float2.x transmittance, float2.y lightEnergy
+            //Transmittance is used for cloud opacity
+            //LightEnergy is used in cloud color
             float2 TakeViewSteps(float3 origin, float3 dir, float stepSize, int steps){
                 float3 currentStepPos = origin;
                 float3 stepVec = dir * stepSize;
@@ -184,11 +187,11 @@ Shader "Volumetric/Base"
 
                     float3 lightDir = _WorldSpaceLightPos0.xyz;
                     float2 lightBoxInfo = RayBoxIntersect(boxmin, boxmax, currentStepPos, 1/lightDir);
-                    float lightTransmittance = TakeLightSteps(currentStepPos, lightDir, lightBoxInfo.y / lightSteps, lightSteps);
+                    float lightTransmittance = TakeLightSteps(currentStepPos, lightDir, lightBoxInfo.y / light_steps, light_steps);
 
+                    //Was having trouble with this since its a +=
+                    //Equation taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
                     lightEnergy += density * stepSize * transmittance * lightTransmittance * isOccludedMultiplier;
-
-                    density = max(0, density - cloud_coverage_threshold);
 
                     //*stepSize makes sure the density is normalized for steps
                     transmittance *= exp(-density * stepSize * isOccludedMultiplier);
@@ -198,8 +201,6 @@ Shader "Volumetric/Base"
 
                 return float2(transmittance, lightEnergy);
             }
-
-
 
             fixed4 frag (v2f i, UNITY_VPOS_TYPE vpos : VPOS) : SV_Target
             {
@@ -219,15 +220,25 @@ Shader "Volumetric/Base"
                 //Calls clip() so will avoid taking steps if it doesnt have to
                 ManualZTestBox(boxinfo.x);
 
-                float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / viewSteps, viewSteps);
-                float lightEnergy = max(cloudInfo.y, 1 - maxShadowValue);
-                //float lightEnergy = cloudInfo.y;
+                float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / view_steps, view_steps);
+                float lightEnergy = cloudInfo.y;
 
-                fixed3 highlightColor = lerp(fixed3(1, 1, 1), lightColor.xyz, 1);
-                fixed3 lightedColor = highlightColor * lightEnergy * lightStrength;
-                fixed3 clampedColor = min(lightedColor, fixed3(1, 1, 1));
+                fixed3 highlightColor = _LightColor0.xyz;
+                fixed3 shadowColor = _ShadowColor.xyz;
 
-                fixed4 col = fixed4(clampedColor, 1 - cloudInfo.x);
+                //lightEnergy (and therefore lightEnergy * lightStrength) should be between 0-1 so it can be used to lerp between shadow and highlight colors
+                //I think some improvements could be made to this lerp in order to improve stylisation
+
+                fixed3 calculatedCloudColor = lerp(shadowColor, highlightColor, min(1, (lightEnergy * light_strength) + shadow_cutoff));
+
+                //Basic highlight-black color
+                //fixed3 lightedColor = highlightColor * lightEnergy * light_strength;
+
+                //Opacity of cloud is soely dependant on the original rays density
+                //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf Section 3.2
+                fixed opacity =  1 - cloudInfo.x;
+
+                fixed4 col = fixed4(calculatedCloudColor, opacity);
                 return col;
             }
             ENDCG
