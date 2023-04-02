@@ -1,0 +1,96 @@
+#pragma kernel Generate2D
+#pragma kernel Generate3D
+
+uint mod(int a, uint m){
+    return (a % m + m) % m;
+}
+
+int ToIndex(int2 index, int size){
+    return index.x + index.y * size;
+}
+
+int ToIndex(int3 index, int size){
+    return index.x + index.y * size + index.z * size * size;
+}
+
+uint texture_size;
+
+//Since texture is created to wrap, initial_frequency and all subsequent frequencies
+//Have to divide exactly into texture_size
+//This works best for initial_frequency that are a power of 2 meaning frequency will likely
+//always be an int so it saves some float to int conversion
+//Lacunarity will always be 2 aswell due to this limitation so freqency will stay an int
+uint frequency;
+
+//2D Generation
+RWTexture2D<float> _Result2D;
+StructuredBuffer<float2> _RandomizedPoints2D;
+
+[numthreads(8,8,1)]
+void Generate2D (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x >= texture_size || id.y >= texture_size) return;
+
+    //This could be inputted but I trust myself enough to have it calculated here
+    int cellSize = texture_size / frequency;
+
+    //Find what grid out pixel is in
+    int2 gridLocation = int2(floor(id.xy / (float)cellSize));
+
+    float nearestDistance = 1.#INF;
+    for(int gridX = gridLocation.x - 1; gridX <= gridLocation.x + 1; gridX++){
+        for(int gridY = gridLocation.y - 1; gridY <= gridLocation.y + 1; gridY++){
+
+            int2 gridOrigin = int2(gridX * cellSize, gridY * cellSize);
+
+            int2 wrappedCoords = int2(mod(gridX, frequency), mod(gridY, frequency));
+            int index = ToIndex(wrappedCoords, frequency);
+
+            //NOTE TO SELF YOU CANNOT USE POINT AS A VARIABLE NAME!!!!!!!!!!!
+            float2 pPos = gridOrigin + (_RandomizedPoints2D[index] * cellSize);
+
+            float pDst = distance(float2(id.xy), pPos);
+            if(pDst < nearestDistance) nearestDistance = pDst;
+        }
+    }
+
+    //Normalize around furthest possible distance (cellSize)
+    _Result2D[id.xy] = 1 - (nearestDistance / cellSize);
+}
+
+//3D Generation
+RWTexture3D<float> _Result3D;
+StructuredBuffer<float3> _RandomizedPoints3D;
+
+[numthreads(8, 8, 8)]
+void Generate3D (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x >= texture_size || id.y >= texture_size || id.z >= texture_size) return;
+
+    //This could be inputted but I trust myself enough to have it calculated here
+    int cellSize = texture_size / frequency;
+
+    //Find what grid out pixel is in
+    int3 gridLocation = int3(floor(id.xyz / (float)cellSize));
+
+    float nearestDistance = 1.#INF;
+    for(int gridX = gridLocation.x - 1; gridX <= gridLocation.x + 1; gridX++){
+        for(int gridY = gridLocation.y - 1; gridY <= gridLocation.y + 1; gridY++){
+            for(int gridZ = gridLocation.z - 1; gridZ <= gridLocation.z + 1; gridZ++){
+                int3 gridOrigin = int3(gridX * cellSize, gridY * cellSize, gridZ * cellSize);
+
+                int3 wrappedCoords = int3(mod(gridX, frequency), mod(gridY, frequency), mod(gridZ, frequency));
+                int index = ToIndex(wrappedCoords, frequency);
+
+                //NOTE TO SELF YOU CANNOT USE POINT AS A VARIABLE NAME!!!!!!!!!!!
+                float3 pPos = gridOrigin + (_RandomizedPoints3D[index] * cellSize);
+
+                float pDst = distance(float3(id.xyz), pPos);
+                if(pDst < nearestDistance) nearestDistance = pDst;
+            }
+        }
+    }
+
+    //Normalize around furthest possible distance (cellSize)
+    _Result3D[id.xyz] = 1 - (nearestDistance / cellSize);
+}

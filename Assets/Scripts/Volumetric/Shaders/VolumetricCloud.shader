@@ -75,8 +75,6 @@ Shader "Volumetric/Base"
             //Rework stepsize to increase slowely when density = 0, described in https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
             //Stop sampling density and doing light calculations when opacity is close to already being fully opaque as resulting calculations will have little effect on pixel value
 
-            //Offload texture creation to GPU (VERY SLOW ATM)
-
 
             //Uniforms
             float3 boxmin;

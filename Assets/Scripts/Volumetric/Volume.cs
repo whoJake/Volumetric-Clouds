@@ -19,9 +19,9 @@ public class Volume : MonoBehaviour
     public int cloudResolution;
     public int seed;
     public int octaves;
-    public float frequency;
+    public int frequency;
+    [Range(0f, 1f)]
     public float persistance;
-    public float lacunarity;
 
     public int steps;
 
@@ -44,8 +44,8 @@ public class Volume : MonoBehaviour
         GetComponent<MeshFilter>().sharedMesh = DefaultCube();
         
         //Generate cloud texture
-        float[,,] cloudNoise = WorleyGen.Generate3DFractal(cloudResolution, cloudResolution, cloudResolution, seed, octaves, frequency, persistance, lacunarity);
-        cloudTexture = TextureHelper.FloatArrayToTexture3D(copyShader, cloudNoise, cloudResolution);
+        //float[,,] cloudNoise = WorleyGen.Generate3DFractal(cloudResolution, cloudResolution, cloudResolution, seed, octaves, frequency, persistance, lacunarity);
+        cloudTexture = WorleyGen.Generate3DFractalGPU(cloudResolution, seed, octaves, frequency, persistance);
 
         material = new Material(shader);
 

@@ -2,14 +2,16 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class Worley : Generator {
 
-    public Vector2Int outputDimensions;
+    public int textureSize;
 
     public bool invert;
     public int seed;
-    public float frequency;
+    [Min(1)]
+    public int frequency;
     [Min(0)]
     public int octaves;
     [Range(0f, 1f)]
@@ -17,49 +19,37 @@ public class Worley : Generator {
     [Range(1f, 3f)]
     public float lacunarity;
 
+    public bool generate = false;
     public bool refresh;
 
-    private Texture2D noiseImage;
+    private void Start() {
+        RebuildTextures(textureSize);
 
-    void Start() {
-
-        RebuildTextures(new Vector2Int(outputDimensions.x, outputDimensions.y));
-
-        float[,] noise = PerlinGen.Generate2DFractal(outputDimensions.x, outputDimensions.y, seed, octaves, frequency, persistance, lacunarity);
-        //float[,] noise = PerlinGen.Generate2D(outputDimensions.x, outputDimensions.y, seed, frequency);
-        for(int x = 0; x < outputDimensions.x; x++) {
-            for(int y = 0; y < outputDimensions.y; y++) {
-                float noiseVal = invert ? 1 - noise[x, y] : noise[x, y];
-                Color color = new Color(noiseVal, noiseVal, noiseVal, 1);
-                noiseImage.SetPixel(x, y, color);
-            }
-        }
-
-        Apply();
+        RenderTexture noise = WorleyGen.Generate2DGPU(textureSize, seed, frequency);
+        Graphics.Blit(noise, target);
     }
 
-    void RebuildTextures(Vector2Int outputDimensions) {
-        if(target.width != outputDimensions.x || target.height != outputDimensions.y) {
+    void RebuildTextures(int textureSize) {
+        if (target.width != textureSize || target.height != textureSize) {
             target.Release();
-            target.width = outputDimensions.x;
-            target.height = outputDimensions.y;
+            target.width = textureSize;
+            target.height = textureSize;
+            target.format = RenderTextureFormat.RFloat;
             target.depth = 0;
             target.Create();
         }
-
-        if(noiseImage == null || noiseImage.width != outputDimensions.x || noiseImage.height != outputDimensions.y) {
-            noiseImage = new Texture2D(outputDimensions.x, outputDimensions.y);
-        }
-    }
-
-    void Apply() {
-        noiseImage.Apply();
-        Graphics.Blit(noiseImage, target);
     }
 
     void Update() {
         if (refresh) {
             refresh = false;
+            Start();
+        }
+    }
+
+    private void OnValidate() {
+        if (generate) {
+            generate = false;
             Start();
         }
     }
