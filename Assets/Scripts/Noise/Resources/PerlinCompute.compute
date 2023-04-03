@@ -1,0 +1,127 @@
+#pragma kernel Generate2D
+#pragma kernel Generate3D
+
+uint mod(int a, uint m){
+    return (a % m + m) % m;
+}
+
+int ToIndex(int2 index, int size){
+    return index.x + index.y * size;
+}
+
+int ToIndex(int3 index, int size){
+    return index.x + index.y * size + index.z * size * size;
+}
+
+//https://rtouti.github.io/graphics/perlin-noise-algorithm
+float Fade(float t){
+    return ((6 * t - 15) * t + 10) * t * t * t;
+}
+
+uint texture_size;
+uint frequency;
+
+
+//2D Generation
+RWTexture2D<float> _Result2D;
+
+//Know this can be done with permutations but this translates easier to my C# code :/
+StructuredBuffer<float2> _RandomizedVectors2D;
+
+[numthreads(8,8,1)]
+void Generate2D (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x >= texture_size || id.y >= texture_size) return;
+
+    uint cellSize = texture_size / frequency;
+
+    int2 gridLocation = int2(floor(id.xy / (float)cellSize));
+
+    //Could probably re-arrange maths here but its intuitive like this
+    int2 gridCorner = gridLocation * cellSize;
+    int2 pixelInCell = id.xy - gridCorner;
+    float2 pixelFloatInCell = pixelInCell / (float)cellSize;
+
+    float dotProducts[4];
+    int count = 0;
+
+    //Take the 4 samples
+    for(int gridX = gridLocation.x; gridX <= gridLocation.x + 1; gridX++){
+        for(int gridY = gridLocation.y; gridY <= gridLocation.y + 1; gridY++){
+
+            int2 cornerOrigin = int2(gridX - gridLocation.x, gridY - gridLocation.y);
+
+            int2 wrappedCoords = int2(mod(gridX, frequency), mod(gridY, frequency));
+            int index = ToIndex(wrappedCoords, frequency);
+
+            float2 vecToCorner = pixelFloatInCell - cornerOrigin;
+
+            float dProduct = dot(_RandomizedVectors2D[index], vecToCorner);
+            dotProducts[count] = dProduct;
+            count++;
+        }
+    }
+
+    float2 faded = float2(Fade(pixelFloatInCell.x), Fade(pixelFloatInCell.y));
+    float value = lerp(lerp(dotProducts[0], dotProducts[1], faded.y),
+                       lerp(dotProducts[2], dotProducts[3], faded.y),
+                       faded.x);
+
+    //Bring back to 0 -> 1 range
+    _Result2D[id.xy] = (value + 1) / 2;
+}
+
+
+//3D Generation
+RWTexture3D<float> _Result3D;
+
+//Know this can be done with permutations but this translates easier to my C# code :/
+StructuredBuffer<float3> _RandomizedVectors3D;
+
+[numthreads(8,8,8)]
+void Generate3D (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x >= texture_size || id.y >= texture_size || id.z >= texture_size) return;
+
+    uint cellSize = texture_size / frequency;
+
+    int3 gridLocation = int3(floor(id.xyz / (float)cellSize));
+
+    //Could probably re-arrange maths here but its intuitive like this
+    int3 gridCorner = gridLocation * cellSize;
+    int3 pixelInCell = id.xyz - gridCorner;
+    float3 pixelFloatInCell = pixelInCell / (float)cellSize;
+
+    float dotProducts[8];
+    int count = 0;
+
+    //Take the 4 samples
+    for(int gridX = gridLocation.x; gridX <= gridLocation.x + 1; gridX++){
+        for(int gridY = gridLocation.y; gridY <= gridLocation.y + 1; gridY++){
+            for(int gridZ = gridLocation.z; gridZ <= gridLocation.z + 1; gridZ++){
+                int3 cornerOrigin = int3(gridX - gridLocation.x, gridY - gridLocation.y, gridZ - gridLocation.z);
+
+                int3 wrappedCoords = int3(mod(gridX, frequency), mod(gridY, frequency), mod(gridZ, frequency));
+                int index = ToIndex(wrappedCoords, frequency);
+
+                float3 vecToCorner = pixelFloatInCell - cornerOrigin;
+
+                float dProduct = dot(_RandomizedVectors3D[index], vecToCorner);
+                dotProducts[count] = dProduct;
+                count++;
+            }
+        }
+    }
+
+    float3 faded = float3(Fade(pixelFloatInCell.x), Fade(pixelFloatInCell.y), Fade(pixelFloatInCell.z));
+    float value = lerp(lerp(lerp(dotProducts[0], dotProducts[1], faded.z),
+                            lerp(dotProducts[2], dotProducts[3], faded.z),
+                            faded.y),
+                        lerp(lerp(dotProducts[4], dotProducts[5], faded.z),
+                             lerp(dotProducts[6], dotProducts[7], faded.z),
+                             faded.y),
+                        faded.x);
+
+    //Bring back to 0 -> 1 range
+    _Result3D[id.xyz] = (value + 1) / 2;
+}

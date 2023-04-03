@@ -44,8 +44,7 @@ public class Volume : MonoBehaviour
         GetComponent<MeshFilter>().sharedMesh = DefaultCube();
         
         //Generate cloud texture
-        //float[,,] cloudNoise = WorleyGen.Generate3DFractal(cloudResolution, cloudResolution, cloudResolution, seed, octaves, frequency, persistance, lacunarity);
-        cloudTexture = WorleyGen.Generate3DFractalGPU(cloudResolution, seed, octaves, frequency, persistance);
+        cloudTexture = PerlinGen.Generate3DFractalGPU(cloudResolution, seed, octaves, frequency, persistance);
 
         material = new Material(shader);
 
