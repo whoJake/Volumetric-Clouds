@@ -8,10 +8,10 @@ using System.Linq;
 public class Volume : MonoBehaviour
 {
     public Shader shader;
-    public ComputeShader copyShader;
-    public RenderTexture cloudTexture;
+    RenderTexture cloudTexture;
     Material material;
 
+    [Header("Generation")]
     public Vector3 cloudScale = Vector3.one;
     public Vector3 cloudOffset;
     [Range(0f, 1f)]
@@ -23,6 +23,7 @@ public class Volume : MonoBehaviour
     [Range(0f, 1f)]
     public float persistance;
 
+    [Header("Rendering")]
     public int steps;
 
     [Header("Lighting")]
@@ -33,10 +34,10 @@ public class Volume : MonoBehaviour
     [Range(0f, 1f)]
     public float shadowCutoffThreshold;
 
+    [Header("Toggles")]
     public bool setup;
     public bool update;
     public bool auto;
-    bool invert;
 
     void Start()
     {
@@ -112,10 +113,6 @@ public class Volume : MonoBehaviour
         if(update) {
             update = false;
             SetMaterialProperties();
-        }
-        if (invert) {
-            invert = false;
-            InvertMesh();
         }
         if (auto) {
             SetMaterialProperties();

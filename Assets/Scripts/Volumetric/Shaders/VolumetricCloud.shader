@@ -68,12 +68,10 @@ Shader "Volumetric/Base"
             //Add brighter highlights around sun
             //Steps are visible using current occlusion method
             //Fading result on edge of bounding box to avoid sharp cutoffs
-            //Look at converting to while loop so that it can be broken out of and improve performance (performance is always same for same number of pixels, no matter the density of cloud)
             //Variable steplength to improve performance
             //Remap when changing shadows instead of cutoff (may improve clarity when using shadow cutoff)
             //Only do light calculations when sampled density > 0
             //Rework stepsize to increase slowely when density = 0, described in https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
-            //Stop sampling density and doing light calculations when opacity is close to already being fully opaque as resulting calculations will have little effect on pixel value
 
 
             //Uniforms
@@ -123,10 +121,12 @@ Shader "Volumetric/Base"
 
             float SampleTexture(float3 worldPos){
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
-                float3 sampleTexPos = WorldSpaceToSamplePos(sampleWorldPos);
-                float value = tex3D(_CloudTexture, frac(sampleTexPos));
+                float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
 
-                return max(0, value - cloud_coverage_threshold);
+                //Had to convert this so that I can break out of forloops and similar
+                float value = tex3Dlod(_CloudTexture, frac(sampleTexPos));
+
+                return saturate(value - cloud_coverage_threshold);
             }
 
             //Returns (distToBox, dstThroughBox) taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
@@ -157,8 +157,8 @@ Shader "Volumetric/Base"
 
                 for(int i = 0; i < steps; i++){
                     float density  = SampleTexture(currentStepPos);
-                    totalDensity += density * stepSize;
 
+                    totalDensity += density * stepSize;
                     currentStepPos += stepVec;
                 }
 
@@ -176,16 +176,21 @@ Shader "Volumetric/Base"
                 float transmittance = 1;
                 float lightEnergy = 0;
 
-                //I can't break out of the loop since I get errors to do with texture sampling inside varying size for loop
-                //This kind of works around it by just nullifying the results if they are being occluded, but they are still calculated...
-                float isOccludedMultiplier = 1;
-
                 for(int i = 0; i < steps; i++){
+
+                    //Exit loop early if the pixel is already mostly filled in
+                    if(transmittance <= 0.015) break;
                     
-                    isOccludedMultiplier = OccludedByDepthTexture(currentStepPos) ? 0 : 1;
                     //Checks the position to see if it is being occluded by depth texture 
+                    if(OccludedByDepthTexture(currentStepPos)) break;
                     
                     float density = SampleTexture(currentStepPos);
+
+                    //Bit ugly to rewrite += stepVec but oh well
+                    if(density == 0){
+                        currentStepPos += stepVec;
+                        continue;
+                    }
 
                     float3 lightDir = _WorldSpaceLightPos0.xyz;
                     float2 lightBoxInfo = RayBoxIntersect(boxmin, boxmax, currentStepPos, 1/lightDir);
@@ -193,10 +198,10 @@ Shader "Volumetric/Base"
 
                     //Was having trouble with this since its a +=
                     //Equation taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
-                    lightEnergy += density * stepSize * transmittance * lightTransmittance * isOccludedMultiplier;
+                    lightEnergy += density * stepSize * transmittance * lightTransmittance;
 
                     //*stepSize makes sure the density is normalized for steps
-                    transmittance *= exp(-density * stepSize * isOccludedMultiplier);
+                    transmittance *= exp(-density * stepSize);
                     
                     currentStepPos += stepVec;
                 }
