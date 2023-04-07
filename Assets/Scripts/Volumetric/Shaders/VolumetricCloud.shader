@@ -63,7 +63,6 @@ Shader "Volumetric/Base"
             //TO DO LIST
             //Add perlin ontop
             //Make texture more advanced to help with tiling being visible at lower scales
-            //Blue noise on starting position of raymarch
             //Henyey-Greenstein scattering
             //Add brighter highlights around sun
             //Steps are visible using current occlusion method
@@ -86,6 +85,9 @@ Shader "Volumetric/Base"
             float shadow_cutoff;
 
             sampler3D _CloudTexture;
+            //MARK TO REMOVE
+            sampler2D _BlueNoise;
+            float noise_strength;
             float world_tex_size;
             float3 cloud_scale;
             float3 cloud_offset;
@@ -119,14 +121,20 @@ Shader "Volumetric/Base"
                 return (pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin);
             }
 
-            float SampleTexture(float3 worldPos){
+            float SampleDensity(float3 worldPos){
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
 
                 //Had to convert this so that I can break out of forloops and similar
-                float value = tex3Dlod(_CloudTexture, frac(sampleTexPos));
+                float value = tex3Dlod(_CloudTexture, frac(sampleTexPos)).r;
 
                 return saturate(value - cloud_coverage_threshold);
+            }
+
+            //MARK TO REMOVE
+            float SampleBlue(float2 uv){
+                float4 sampleTexPos = float4(frac(uv / 128), 0, 0);
+                return tex2Dlod(_BlueNoise, sampleTexPos).rgb;
             }
 
             //Returns (distToBox, dstThroughBox) taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
@@ -156,7 +164,7 @@ Shader "Volumetric/Base"
                 float totalDensity = 0;
 
                 for(int i = 0; i < steps; i++){
-                    float density  = SampleTexture(currentStepPos);
+                    float density  = SampleDensity(currentStepPos);
 
                     totalDensity += density * stepSize;
                     currentStepPos += stepVec;
@@ -184,7 +192,7 @@ Shader "Volumetric/Base"
                     //Checks the position to see if it is being occluded by depth texture 
                     if(OccludedByDepthTexture(currentStepPos)) break;
                     
-                    float density = SampleTexture(currentStepPos);
+                    float density = SampleDensity(currentStepPos);
 
                     //Bit ugly to rewrite += stepVec but oh well
                     if(density == 0){
@@ -227,20 +235,19 @@ Shader "Volumetric/Base"
                 //Calls clip() so will avoid taking steps if it doesnt have to
                 ManualZTestBox(boxinfo.x);
 
+                //Trying this, I don't think the results were really acceptable. It got rid of the visible layering you get from having a low sample rate but it was so overpowering.
+                //I think there may be a way to afterwards, use the same noise to denoise the image but as is, the results are bad
+                //float3 blueNoiseOffset = SampleBlue(vpos.xy * boxinfo.y);
+
                 float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / view_steps, view_steps);
                 float lightEnergy = cloudInfo.y;
 
                 fixed3 highlightColor = _LightColor0.xyz;
-                //fixed3 highlightColor = 0;
                 fixed3 shadowColor = _ShadowColor.xyz;
 
                 //lightEnergy (and therefore lightEnergy * lightStrength) should be between 0-1 so it can be used to lerp between shadow and highlight colors
                 //I think some improvements could be made to this lerp in order to improve stylisation
-
                 fixed3 calculatedCloudColor = lerp(shadowColor, highlightColor, min(1, (lightEnergy * light_strength) + shadow_cutoff));
-
-                //Basic highlight-black color
-                //fixed3 lightedColor = highlightColor * lightEnergy * light_strength;
 
                 //Opacity of cloud is soely dependant on the original rays density
                 //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf Section 3.2

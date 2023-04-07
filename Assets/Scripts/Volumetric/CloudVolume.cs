@@ -1,11 +1,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using System.Linq;
 
 [RequireComponent(typeof(MeshRenderer))]
 [RequireComponent(typeof(MeshFilter))]
-public class Volume : MonoBehaviour
+public class CloudVolume : MonoBehaviour
 {
     public Shader shader;
     RenderTexture cloudTexture;
@@ -24,6 +23,9 @@ public class Volume : MonoBehaviour
     public float persistance;
 
     [Header("Rendering")]
+    public Texture2D blueNoise;
+    [Range(0f, 1f)]
+    public float noiseStrength;
     public int steps;
 
     [Header("Lighting")]
@@ -70,12 +72,9 @@ public class Volume : MonoBehaviour
         material.SetFloat("light_strength", lightStrength);
         material.SetFloat("shadow_cutoff", shadowCutoffThreshold);
         material.SetTexture("_CloudTexture", cloudTexture);
+        material.SetTexture("_BlueNoise", blueNoise);
+        material.SetFloat("noise_strength", noiseStrength);
         material.SetFloat("world_tex_size", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
-    }
-
-    void InvertMesh() {
-        MeshFilter filter = GetComponent<MeshFilter>();
-        filter.sharedMesh.triangles = filter.sharedMesh.triangles.Reverse().ToArray();
     }
 
     Mesh DefaultCube() {

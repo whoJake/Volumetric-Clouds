@@ -1,0 +1,1 @@
+[ stbn_vec1_2Dx1D_128x128x64_10.png ] sourced from [ https://developer.nvidia.com/blog/rendering-in-real-time-with-spatiotemporal-blue-noise-textures-part-1/ ]
