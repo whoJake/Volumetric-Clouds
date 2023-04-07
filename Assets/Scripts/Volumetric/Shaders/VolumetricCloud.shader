@@ -1,13 +1,11 @@
-Shader "Volumetric/Base"
+Shader "Volumetric/Cloud"
 {
     Properties
     {
-        _MainTex ("Texture", 2D) = "white" {}
     }
     SubShader
     {
-            Tags { "RenderType"="Transparent" "Queue"="Transparent+1" LightMode=ForwardBase }
-
+        Tags { "RenderType"="Transparent" "Queue"="Transparent+1" LightMode=ForwardBase }
         Pass
         {
             Blend SrcAlpha OneMinusSrcAlpha
@@ -23,7 +21,7 @@ Shader "Volumetric/Base"
             #include "UnityCG.cginc"
             #include "Lighting.cginc"
 
-            //Fixed clipping issues thanks to this code
+            //Fixed distorted clipping issues thanks to this code
             //I dont really understand it but thank god it exists
             //https://forum.unity.com/threads/understanding-worldspaceviewdir-incorrect-weird-values.1272374/
             UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
@@ -67,10 +65,9 @@ Shader "Volumetric/Base"
             //Add brighter highlights around sun
             //Steps are visible using current occlusion method
             //Fading result on edge of bounding box to avoid sharp cutoffs
-            //Variable steplength to improve performance
             //Remap when changing shadows instead of cutoff (may improve clarity when using shadow cutoff)
-            //Only do light calculations when sampled density > 0
-            //Rework stepsize to increase slowely when density = 0, described in https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
+            //Dynamic stepSize with step_inc needs to have a max implemented as perhaps backstep once it reaches a density != 0
+            //Look more into blue noise offsets
 
 
             //Uniforms
@@ -80,14 +77,12 @@ Shader "Volumetric/Base"
             #define MAX_STEPS 64
             int view_steps;
             int light_steps;
+            float step_inc;
             fixed4 _ShadowColor;
             float light_strength;
             float shadow_cutoff;
 
             sampler3D _CloudTexture;
-            //MARK TO REMOVE
-            sampler2D _BlueNoise;
-            float noise_strength;
             float world_tex_size;
             float3 cloud_scale;
             float3 cloud_offset;
@@ -131,12 +126,6 @@ Shader "Volumetric/Base"
                 return saturate(value - cloud_coverage_threshold);
             }
 
-            //MARK TO REMOVE
-            float SampleBlue(float2 uv){
-                float4 sampleTexPos = float4(frac(uv / 128), 0, 0);
-                return tex2Dlod(_BlueNoise, sampleTexPos).rgb;
-            }
-
             //Returns (distToBox, dstThroughBox) taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
             //Which was adapted from http://jcgt.org/published/0007/03/04/
             float2 RayBoxIntersect(float3 boxmin, float3 boxmax, float3 rayOrigin, float3 invRayDir){
@@ -157,8 +146,9 @@ Shader "Volumetric/Base"
                 return float2(dstToBox, dstInsideBox);
             }
 
-            float TakeLightSteps(float3 origin, float3 dir, float stepSize, int steps){
+            float TakeLightSteps(float3 origin, float3 dir, float maxRayLength, int steps){
                 float3 currentStepPos = origin;
+                float stepSize = maxRayLength / steps;
                 float3 stepVec = dir * stepSize;
 
                 float totalDensity = 0;
@@ -177,43 +167,47 @@ Shader "Volumetric/Base"
             //Returns float2.x transmittance, float2.y lightEnergy
             //Transmittance is used for cloud opacity
             //LightEnergy is used in cloud color
-            float2 TakeViewSteps(float3 origin, float3 dir, float stepSize, int steps){
-                float3 currentStepPos = origin;
-                float3 stepVec = dir * stepSize;
-
+            float2 TakeViewSteps(float3 origin, float3 dir, float maxRayLength, int steps){
                 float transmittance = 1;
                 float lightEnergy = 0;
 
-                for(int i = 0; i < steps; i++){
+                float initialStepSize = maxRayLength / steps;
 
-                    //Exit loop early if the pixel is already mostly filled in
-                    if(transmittance <= 0.015) break;
-                    
-                    //Checks the position to see if it is being occluded by depth texture 
-                    if(OccludedByDepthTexture(currentStepPos)) break;
-                    
-                    float density = SampleDensity(currentStepPos);
+                float currentStepDst = 0;
+                float currentStepSize = initialStepSize;
 
-                    //Bit ugly to rewrite += stepVec but oh well
+                // <= doesnt work here for some reason, while loop never finishes have no idea why currentStepDst would get stuck at maxRayLength
+                while(currentStepDst < maxRayLength){
+                    if(transmittance <= 0.005) break;
+
+                    float3 densitySamplePos = origin + (dir * currentStepDst);
+
+                    if(OccludedByDepthTexture(densitySamplePos)) break;
+
+                    float density = SampleDensity(densitySamplePos);
+
+                    //No cloud to sample so can skip light calculations and increase stepSize so that a density with clouds is hit sooner
                     if(density == 0){
-                        currentStepPos += stepVec;
+                        currentStepSize += step_inc;
+                        currentStepDst += currentStepSize;
                         continue;
                     }
-
-                    float3 lightDir = _WorldSpaceLightPos0.xyz;
-                    float2 lightBoxInfo = RayBoxIntersect(boxmin, boxmax, currentStepPos, 1/lightDir);
-                    float lightTransmittance = TakeLightSteps(currentStepPos, lightDir, lightBoxInfo.y / light_steps, light_steps);
-
-                    //Was having trouble with this since its a +=
-                    //Equation taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
-                    lightEnergy += density * stepSize * transmittance * lightTransmittance;
-
-                    //*stepSize makes sure the density is normalized for steps
-                    transmittance *= exp(-density * stepSize);
                     
-                    currentStepPos += stepVec;
-                }
+                    float3 lightDir = _WorldSpaceLightPos0.xyz;
+                    float2 lightBoxInfo = RayBoxIntersect(boxmin, boxmax, densitySamplePos, 1/lightDir);
+                    float lightTransmittance = TakeLightSteps(densitySamplePos, lightDir, lightBoxInfo.y, light_steps);
 
+                    //Was having trouble with this since its rearranged from exp(-totalDensity)
+                    //Equation taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
+                    lightEnergy += density * currentStepSize * transmittance * lightTransmittance;
+
+                    //stepSize makes sure the density is normalized for steps
+                    transmittance *= exp(-density * currentStepSize);
+
+                    currentStepSize = initialStepSize;
+                    currentStepDst += currentStepSize;
+                }
+                
                 return float2(transmittance, lightEnergy);
             }
 
@@ -239,7 +233,7 @@ Shader "Volumetric/Base"
                 //I think there may be a way to afterwards, use the same noise to denoise the image but as is, the results are bad
                 //float3 blueNoiseOffset = SampleBlue(vpos.xy * boxinfo.y);
 
-                float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y / view_steps, view_steps);
+                float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y, view_steps);
                 float lightEnergy = cloudInfo.y;
 
                 fixed3 highlightColor = _LightColor0.xyz;

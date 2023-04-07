@@ -23,10 +23,8 @@ public class CloudVolume : MonoBehaviour
     public float persistance;
 
     [Header("Rendering")]
-    public Texture2D blueNoise;
-    [Range(0f, 1f)]
-    public float noiseStrength;
     public int steps;
+    public float stepIncrement;
 
     [Header("Lighting")]
     public int lightSteps;
@@ -68,12 +66,11 @@ public class CloudVolume : MonoBehaviour
         material.SetVector("boxmax", boxmax);
         material.SetInt("view_steps", steps);
         material.SetInt("light_steps", lightSteps);
+        material.SetFloat("step_inc", stepIncrement);
         material.SetColor("_ShadowColor", shadowColor);
         material.SetFloat("light_strength", lightStrength);
         material.SetFloat("shadow_cutoff", shadowCutoffThreshold);
         material.SetTexture("_CloudTexture", cloudTexture);
-        material.SetTexture("_BlueNoise", blueNoise);
-        material.SetFloat("noise_strength", noiseStrength);
         material.SetFloat("world_tex_size", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
     }
 
