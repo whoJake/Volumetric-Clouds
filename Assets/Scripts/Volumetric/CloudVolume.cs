@@ -29,10 +29,16 @@ public class CloudVolume : MonoBehaviour
     [Header("Lighting")]
     public int lightSteps;
     public Color shadowColor;
-    [Range(0f, 1f)]
+    [Range(0f, 2f)]
     public float lightStrength;
     [Range(0f, 1f)]
     public float shadowCutoffThreshold;
+    [Range(0, 1f)]
+    public float inScatterWeight;
+    [Range(0, 1f)]
+    public float outScatterWeight;
+    [Range(0, 1f)]
+    public float scatterBlend;
 
     [Header("Toggles")]
     public bool setup;
@@ -70,6 +76,9 @@ public class CloudVolume : MonoBehaviour
         material.SetColor("_ShadowColor", shadowColor);
         material.SetFloat("light_strength", lightStrength);
         material.SetFloat("shadow_cutoff", shadowCutoffThreshold);
+        material.SetFloat("in_scatter_g", inScatterWeight);
+        material.SetFloat("out_scatter_g", outScatterWeight);
+        material.SetFloat("scatter_blend", scatterBlend);
         material.SetTexture("_CloudTexture", cloudTexture);
         material.SetFloat("world_tex_size", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
     }

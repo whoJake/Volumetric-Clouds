@@ -68,6 +68,7 @@ Shader "Volumetric/Cloud"
             //Remap when changing shadows instead of cutoff (may improve clarity when using shadow cutoff)
             //Dynamic stepSize with step_inc needs to have a max implemented as perhaps backstep once it reaches a density != 0
             //Look more into blue noise offsets
+            //Attempt to get working for point lights rather than just 1 directional light
 
 
             //Uniforms
@@ -87,6 +88,10 @@ Shader "Volumetric/Cloud"
             float3 cloud_scale;
             float3 cloud_offset;
             float cloud_coverage_threshold;
+
+            float in_scatter_g;
+            float out_scatter_g;
+            float scatter_blend;
 
             //Globals
             float depthTextureDistance;
@@ -124,6 +129,23 @@ Shader "Volumetric/Cloud"
                 float value = tex3Dlod(_CloudTexture, frac(sampleTexPos)).r;
 
                 return saturate(value - cloud_coverage_threshold);
+            }
+
+            //Equation from
+            //https://omlc.org/classroom/ece532/class3/hg.html
+            float hgScatter(float cosA, float g){
+                float g2 = g * g;
+                return (0.5) * ((1 - g2) / pow(1 + g2 - 2 * g * cosA, 1.5));
+            }
+            
+            //Only doing one hgScatter makes everything darker so we also apply an 
+            //outscatter towards the sun in order to brighten up facing away from sun areas
+            //Idea also used in https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
+            float phase(float cosA){
+                float inScatterHG = hgScatter(cosA, in_scatter_g);
+                float outScatterHG = hgScatter(cosA, -out_scatter_g);
+
+                return lerp(inScatterHG, outScatterHG, scatter_blend);
             }
 
             //Returns (distToBox, dstThroughBox) taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
@@ -233,8 +255,11 @@ Shader "Volumetric/Cloud"
                 //I think there may be a way to afterwards, use the same noise to denoise the image but as is, the results are bad
                 //float3 blueNoiseOffset = SampleBlue(vpos.xy * boxinfo.y);
 
+                float cosA = dot(rayDir, _WorldSpaceLightPos0.xyz);
+                float phaseValue = phase(cosA);
+
                 float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y, view_steps);
-                float lightEnergy = cloudInfo.y;
+                float lightEnergy = cloudInfo.y * phaseValue;
 
                 fixed3 highlightColor = _LightColor0.xyz;
                 fixed3 shadowColor = _ShadowColor.xyz;
