@@ -89,6 +89,10 @@ Shader "Volumetric/Cloud"
             float3 cloud_offset;
             float cloud_coverage_threshold;
 
+            sampler2D _BlueNoise;
+            int noise_size;
+            float noise_strength;
+
             float in_scatter_g;
             float out_scatter_g;
             float scatter_blend;
@@ -129,6 +133,14 @@ Shader "Volumetric/Cloud"
                 float value = tex3Dlod(_CloudTexture, frac(sampleTexPos)).r;
 
                 return saturate(value - cloud_coverage_threshold);
+            }
+
+            float SampleNoise(float2 screenUV){
+                float2 uv = frac(screenUV / noise_size);
+                float4 uv4 = float4(uv, 0, 0);
+
+                float noise = tex2Dlod(_BlueNoise, uv4);
+                return noise;
             }
 
             //Equation from
@@ -189,13 +201,13 @@ Shader "Volumetric/Cloud"
             //Returns float2.x transmittance, float2.y lightEnergy
             //Transmittance is used for cloud opacity
             //LightEnergy is used in cloud color
-            float2 TakeViewSteps(float3 origin, float3 dir, float maxRayLength, int steps){
+            float2 TakeViewSteps(float3 origin, float3 dir, float initialDst, float maxRayLength, int steps){
                 float transmittance = 1;
                 float lightEnergy = 0;
 
                 float initialStepSize = maxRayLength / steps;
 
-                float currentStepDst = 0;
+                float currentStepDst = initialDst;
                 float currentStepSize = initialStepSize;
 
                 // <= doesnt work here for some reason, while loop never finishes have no idea why currentStepDst would get stuck at maxRayLength
@@ -258,7 +270,14 @@ Shader "Volumetric/Cloud"
                 float cosA = dot(rayDir, _WorldSpaceLightPos0.xyz);
                 float phaseValue = phase(cosA);
 
-                float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, boxinfo.y, view_steps);
+                //applying blue noise offset makes really large step sizes look noisy rather than distorted
+                //noise is * by steplength so is more noticable on larger step lengths but that is where it helps the most
+                float blueNoise = SampleNoise(vpos.xy) * 2 - 1;
+                float stepSize = boxinfo.y / view_steps;
+                float noiseOffset = stepSize * blueNoise * noise_strength;
+
+
+                float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, noiseOffset, boxinfo.y, view_steps);
                 float lightEnergy = cloudInfo.y * phaseValue;
 
                 fixed3 highlightColor = _LightColor0.xyz;
