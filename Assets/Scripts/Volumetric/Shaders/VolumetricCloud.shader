@@ -89,6 +89,8 @@ Shader "Volumetric/Cloud"
             float3 cloud_offset;
             float cloud_coverage_threshold;
 
+            sampler2D _CloudInfoTexture;
+
             sampler2D _BlueNoise;
             int noise_size;
             float noise_strength;
@@ -126,11 +128,24 @@ Shader "Volumetric/Cloud"
             }
 
             float SampleDensity(float3 worldPos){
+                //Textures needed
+                //Coverage probability map
+                //Height density probability
+                //3D cloud textures for detail (combination of worley and perlin)
+
+                //Sample coverage map
+                //Combine with height density probability to get cloud probability map
+                //Add perlin-worley ontop to form cloud shapes around density map
+
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
+                float4 wrappedSampleTexPos = frac(sampleTexPos);
 
-                //Had to convert this so that I can break out of forloops and similar
-                float value = tex3Dlod(_CloudTexture, frac(sampleTexPos)).r;
+                float cloudCoverageValue = max(0.5, tex2Dlod(_CloudInfoTexture, float4(wrappedSampleTexPos.xz, 0, 0)).r);
+                float cloudHeightDensityValue = tex2Dlod(_CloudInfoTexture, float4(wrappedSampleTexPos.xy, 0, 0)).g;
+                float cloudShapeValue = tex3Dlod(_CloudTexture, wrappedSampleTexPos).r;
+
+                float value = cloudShapeValue * cloudCoverageValue * cloudHeightDensityValue;
 
                 return saturate(value - cloud_coverage_threshold);
             }

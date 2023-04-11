@@ -22,6 +22,9 @@ public class CloudVolume : MonoBehaviour
     [Range(0f, 1f)]
     public float persistance;
 
+    [Header("Cloud Textures")]
+    public Texture2D cloudInfo;
+
     [Header("Rendering")]
     public int steps;
     public float stepIncrement;
@@ -89,6 +92,8 @@ public class CloudVolume : MonoBehaviour
         material.SetFloat("noise_strength", noiseStrength);
         material.SetInt("noise_size", Mathf.Max(blueNoise.width, blueNoise.height));
         material.SetFloat("world_tex_size", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
+
+        material.SetTexture("_CloudInfoTexture", cloudInfo);
     }
 
     Mesh DefaultCube() {
