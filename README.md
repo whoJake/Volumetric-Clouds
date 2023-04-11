@@ -9,3 +9,7 @@ Screenshots taken just after implementation of Henyey-Greenstein scattering whic
 ![progress20230408 hgscattering](https://user-images.githubusercontent.com/37589250/230717815-2c0cd6b0-9ccf-4b88-a0bb-db04dafcd164.png)
 
 ![progress20230408](https://user-images.githubusercontent.com/37589250/230717801-77db7b91-58c7-4d16-b95b-de6e72a25699.png)
+
+## Some more pictures from experimentations using textures to control cloud coverage and height density probability
+
+![progress20230411 artistic](https://user-images.githubusercontent.com/37589250/231141512-b67adf18-69fd-4bca-a14f-d2dc85ae2110.png)
