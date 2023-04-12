@@ -99,6 +99,13 @@ Shader "Volumetric/Cloud"
             //Globals
             float depthTextureDistance;
 
+            float remap(float val, float oa, float ob, float na, float nb){
+                float od = ob - oa;
+                float nd = nb - na;
+                float of = (val - oa) / od;
+                return na + nd * of;
+            }
+
             void CalculateDepthTextureDistance(float2 uv){
                 float3 viewPixelPos = viewSpacePosAtScreenUV(uv);
                 float3 worldPixelPos = mul(unity_CameraToWorld, float4(viewPixelPos.xy, -viewPixelPos.z, 1.0)).xyz;
@@ -129,13 +136,16 @@ Shader "Volumetric/Cloud"
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
                 float4 wrappedSampleTexPos = frac(sampleTexPos);
 
-
                 //Need to change this mapping as it has horrible artifacting and doesn't have great effects
                 float cloudCoverageValue = max(0.5, tex2Dlod(_CloudInfoTexture, float4(wrappedSampleTexPos.xz, 0, 0)).r);
                 float cloudHeightDensityValue = tex2Dlod(_CloudInfoTexture, float4(wrappedSampleTexPos.xy, 0, 0)).g;
-                float cloudShapeValue = tex3Dlod(_CloudTexture, wrappedSampleTexPos).r;
+                float4 cloudShapeValue = tex3Dlod(_CloudTexture, wrappedSampleTexPos);
 
-                float value = cloudShapeValue * cloudCoverageValue * cloudHeightDensityValue;
+                //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
+                //FUNCTION 11
+                float cloudDetailVal = remap(cloudShapeValue.r, (cloudShapeValue.g * 0.625 + cloudShapeValue.b * 0.25 + cloudShapeValue.a * 0.125) - 1, 1, 0, 1);
+
+                float value = cloudDetailVal;// * cloudCoverageValue * cloudHeightDensityValue;
 
                 return saturate(value - cloud_coverage_threshold);
             }
@@ -195,7 +205,7 @@ Shader "Volumetric/Cloud"
                 for(int i = 0; i < steps; i++){
                     float density  = SampleDensity(currentStepPos);
 
-                    totalDensity += density * stepSize;
+                    totalDensity += density * stepSize * light_strength;
                     currentStepPos += stepVec;
                 }
 
@@ -288,9 +298,11 @@ Shader "Volumetric/Cloud"
                 fixed3 highlightColor = _LightColor0.xyz;
                 fixed3 shadowColor = _ShadowColor.xyz;
 
+                float lightInfluence = remap(saturate(lightEnergy), 0, 1, shadow_cutoff, 1);
+
                 //lightEnergy (and therefore lightEnergy * lightStrength) should be between 0-1 so it can be used to lerp between shadow and highlight colors
                 //I think some improvements could be made to this lerp in order to improve stylisation
-                fixed3 calculatedCloudColor = lerp(shadowColor, highlightColor, min(1, (lightEnergy * light_strength) + shadow_cutoff));
+                fixed3 calculatedCloudColor = lerp(shadowColor, highlightColor, lightInfluence);
 
                 //Opacity of cloud is soely dependant on the original rays density
                 //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf Section 3.2
