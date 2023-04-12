@@ -61,11 +61,11 @@ Shader "Volumetric/Cloud"
             //TO DO LIST
             //Steps are visible using current occlusion method
             //Fading result on edge of bounding box to avoid sharp cutoffs
-            //Remap when changing shadows instead of cutoff (may improve clarity when using shadow cutoff)
             //Attempt to get working for point lights rather than just 1 directional light
             //Work on remapping with cloud coverage textures instead of simply multiplication
-            //Use all 4 channels of cloud detail texture
             //Investigate fps problems at higher coverage values
+
+            //Remapping the height -> Nubis Slide 29
 
 
             //Uniforms
@@ -85,6 +85,9 @@ Shader "Volumetric/Cloud"
             float3 cloud_scale;
             float3 cloud_offset;
             float cloud_coverage_threshold;
+
+            float3 cloud_detail_scale;
+            float3 cloud_detail_offset;
 
             sampler2D _CloudInfoTexture;
 
@@ -134,18 +137,22 @@ Shader "Volumetric/Cloud"
             float SampleDensity(float3 worldPos){
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
-                float4 wrappedSampleTexPos = frac(sampleTexPos);
+
+                float3 sampleDetailWorldPos = (worldPos * cloud_detail_scale) + cloud_detail_offset;
+                float4 sampleDetailTexPos = float4(WorldSpaceToSamplePos(sampleDetailWorldPos), 0);
+                //Texture has wrapmode set to Repeat so can have the GPU do the UV Coordinate wrapping itself
 
                 //Need to change this mapping as it has horrible artifacting and doesn't have great effects
-                float cloudCoverageValue = max(0.5, tex2Dlod(_CloudInfoTexture, float4(wrappedSampleTexPos.xz, 0, 0)).r);
-                float cloudHeightDensityValue = tex2Dlod(_CloudInfoTexture, float4(wrappedSampleTexPos.xy, 0, 0)).g;
-                float4 cloudShapeValue = tex3Dlod(_CloudTexture, wrappedSampleTexPos);
+                float cloudCoverageValue = tex2Dlod(_CloudInfoTexture, float4(sampleTexPos.xz, 0, 0)).r;
+                float cloudHeightDensityValue = tex2Dlod(_CloudInfoTexture, float4(sampleTexPos.xy, 0, 0)).g;
+                float4 cloudShapeValue = tex3Dlod(_CloudTexture, sampleDetailTexPos);
 
                 //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
                 //FUNCTION 11
                 float cloudDetailVal = remap(cloudShapeValue.r, (cloudShapeValue.g * 0.625 + cloudShapeValue.b * 0.25 + cloudShapeValue.a * 0.125) - 1, 1, 0, 1);
 
-                float value = cloudDetailVal;// * cloudCoverageValue * cloudHeightDensityValue;
+                //Something like this?
+                float value = remap(cloudDetailVal, cloudCoverageValue, 1, 0, 1);
 
                 return saturate(value - cloud_coverage_threshold);
             }
@@ -162,7 +169,10 @@ Shader "Volumetric/Cloud"
             //https://omlc.org/classroom/ece532/class3/hg.html
             float hgScatter(float cosA, float g){
                 float g2 = g * g;
-                return (0.5) * ((1 - g2) / pow(1 + g2 - 2 * g * cosA, 1.5));
+                //return ((1 - g2) / pow(1 + g2 - 2 * g * cosA, 1.5)) / 4 * 3.1415;
+
+                //Rearanged to have only one float division
+                return ((1.0 - g2) * 3.1415) / (pow(1.0 + g2 - 2.0 * g * cosA, 1.5) * 4.0);
             }
             
             //Only doing one hgScatter makes everything darker so we also apply an 
@@ -209,8 +219,12 @@ Shader "Volumetric/Cloud"
                     currentStepPos += stepVec;
                 }
 
-                float transmittance = exp(-totalDensity);
-                return transmittance;
+                float energy = exp(-totalDensity);
+                //Idea from
+                //https://advances.realtimerendering.com/s2017/Nubis%20-%20Authoring%20Realtime%20Volumetric%20Cloudscapes%20with%20the%20Decima%20Engine%20-%20Final%20.pdf
+                //Slide 85
+                //float energy = max(exp(-totalDensity), (exp(-totalDensity * 0.25) * 0.7));
+                return energy;
             }
 
             //Returns float2.x transmittance, float2.y lightEnergy

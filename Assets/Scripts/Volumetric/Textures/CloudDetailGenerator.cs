@@ -71,6 +71,7 @@ public static class CloudDetailGenerator {
         RenderTexture destination = new RenderTexture(red.width, red.width, 0);
         destination.dimension = UnityEngine.Rendering.TextureDimension.Tex3D;
         destination.format = RenderTextureFormat.ARGBFloat;
+        destination.wrapMode = TextureWrapMode.Repeat;
         destination.volumeDepth = red.width;
         destination.enableRandomWrite = true;
         destination.Create();

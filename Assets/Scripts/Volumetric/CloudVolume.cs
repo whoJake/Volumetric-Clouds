@@ -48,6 +48,10 @@ public class CloudVolume : MonoBehaviour
     [Header("Rendering")]
     public Vector3 cloudScale = Vector3.one;
     public Vector3 cloudOffset;
+
+    [Header("Detail")]
+    public Vector3 cloudDetailScale = Vector3.one;
+    public Vector3 cloudDetailOffset = Vector3.one;
     [Range(0f, 1f)]
     public float cloudCoverage;
 
@@ -62,7 +66,7 @@ public class CloudVolume : MonoBehaviour
     [Header("Lighting")]
     public int lightSteps;
     public Color shadowColor;
-    [Range(0f, 10f)]
+    [Range(0f, 3f)]
     public float lightStrength;
     [Range(0f, 1f)]
     public float shadowCutoffThreshold;
@@ -100,7 +104,9 @@ public class CloudVolume : MonoBehaviour
         Vector3 boxmax = transform.position + (transform.localScale / 2f);
 
         material.SetVector("cloud_scale", cloudScale);
+        material.SetVector("cloud_detail_scale", cloudDetailScale);
         material.SetVector("cloud_offset", cloudOffset);
+        material.SetVector("cloud_detail_offset", cloudDetailOffset);
         material.SetFloat("cloud_coverage_threshold", cloudCoverage);
         material.SetVector("boxmin", boxmin);
         material.SetVector("boxmax", boxmax);
