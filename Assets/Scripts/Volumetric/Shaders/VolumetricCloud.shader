@@ -59,16 +59,13 @@ Shader "Volumetric/Cloud"
             }
 
             //TO DO LIST
-            //Add perlin ontop
-            //Make texture more advanced to help with tiling being visible at lower scales
-            //Henyey-Greenstein scattering
-            //Add brighter highlights around sun
             //Steps are visible using current occlusion method
             //Fading result on edge of bounding box to avoid sharp cutoffs
             //Remap when changing shadows instead of cutoff (may improve clarity when using shadow cutoff)
-            //Dynamic stepSize with step_inc needs to have a max implemented as perhaps backstep once it reaches a density != 0
-            //Look more into blue noise offsets
             //Attempt to get working for point lights rather than just 1 directional light
+            //Work on remapping with cloud coverage textures instead of simply multiplication
+            //Use all 4 channels of cloud detail texture
+            //Investigate fps problems at higher coverage values
 
 
             //Uniforms
@@ -128,19 +125,12 @@ Shader "Volumetric/Cloud"
             }
 
             float SampleDensity(float3 worldPos){
-                //Textures needed
-                //Coverage probability map
-                //Height density probability
-                //3D cloud textures for detail (combination of worley and perlin)
-
-                //Sample coverage map
-                //Combine with height density probability to get cloud probability map
-                //Add perlin-worley ontop to form cloud shapes around density map
-
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
                 float4 wrappedSampleTexPos = frac(sampleTexPos);
 
+
+                //Need to change this mapping as it has horrible artifacting and doesn't have great effects
                 float cloudCoverageValue = max(0.5, tex2Dlod(_CloudInfoTexture, float4(wrappedSampleTexPos.xz, 0, 0)).r);
                 float cloudHeightDensityValue = tex2Dlod(_CloudInfoTexture, float4(wrappedSampleTexPos.xy, 0, 0)).g;
                 float cloudShapeValue = tex3Dlod(_CloudTexture, wrappedSampleTexPos).r;

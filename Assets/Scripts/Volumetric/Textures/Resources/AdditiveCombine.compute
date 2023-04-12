@@ -1,0 +1,11 @@
+#pragma kernel Combine
+
+RWTexture3D<float> _Source;
+RWTexture3D<float> _Destination;
+float blend;
+
+[numthreads(8,8,8)]
+void Combine (uint3 id : SV_DispatchThreadID)
+{
+    _Destination[id.xyz] = lerp(_Source[id.xyz], _Destination[id.xyz],  blend);
+}

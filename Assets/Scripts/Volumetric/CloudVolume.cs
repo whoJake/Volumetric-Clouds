@@ -7,25 +7,50 @@ using UnityEngine;
 public class CloudVolume : MonoBehaviour
 {
     public Shader shader;
-    RenderTexture cloudTexture;
     Material material;
 
-    [Header("Generation")]
-    public Vector3 cloudScale = Vector3.one;
-    public Vector3 cloudOffset;
-    [Range(0f, 1f)]
-    public float cloudCoverage;
-    public int cloudResolution;
+    [Space]
+    
+    [Header("Cloud Texture Creation")]
+    public int detailResolution;
     public int seed;
-    public int octaves;
-    public int frequency;
-    [Range(0f, 1f)]
-    public float persistance;
+    [Header("Perlin-Worley R Channel")]
+    [Header("Perlin")]
+    public int r_frequency_perlin;
+    public int r_octaves_perlin;
+    public float r_persistance_perlin;
+    [Header("Worley")]
+    public int r_frequency_worley;
+    public int r_octaves_worley;
+    public float r_persistance_worley;
+    [Header("Worley G Channel")]
+    public int g_frequency;
+    public int g_octaves;
+    public float g_persistance;
+    [Header("Worley B Channel")]
+    public int b_frequency;
+    public int b_octaves;
+    public float b_persistance;
+    [Header("Worley A Channel")]
+    public int a_frequency;
+    public int a_octaves;
+    public float a_persistance;
+
+    private CloudDetailGenerator.DetailSettings detailSettings;
+    private RenderTexture cloudDetailTexture;
+
+    [Space]
+    [Space]
 
     [Header("Cloud Textures")]
     public Texture2D cloudInfo;
 
     [Header("Rendering")]
+    public Vector3 cloudScale = Vector3.one;
+    public Vector3 cloudOffset;
+    [Range(0f, 1f)]
+    public float cloudCoverage;
+
     public int steps;
     public float stepIncrement;
 
@@ -57,13 +82,14 @@ public class CloudVolume : MonoBehaviour
     {
         Camera.main.depthTextureMode = DepthTextureMode.Depth;
         GetComponent<MeshFilter>().sharedMesh = DefaultCube();
-        
-        //Generate cloud texture
-        cloudTexture = PerlinGen.Generate3DFractalGPU(cloudResolution, seed, octaves, frequency, persistance);
+
+        //Generate cloud detail texture
+        InitializeDetailSettings();
+        cloudDetailTexture = CloudDetailGenerator.CreateDetailTexture(detailSettings);
 
         material = new Material(shader);
 
-        GetComponent<MeshRenderer>().material = material;
+        GetComponent<MeshRenderer>().sharedMaterial = material;
         SetMaterialProperties();
     }
 
@@ -87,7 +113,7 @@ public class CloudVolume : MonoBehaviour
         material.SetFloat("in_scatter_g", inScatterWeight);
         material.SetFloat("out_scatter_g", outScatterWeight);
         material.SetFloat("scatter_blend", scatterBlend);
-        material.SetTexture("_CloudTexture", cloudTexture);
+        material.SetTexture("_CloudTexture", cloudDetailTexture);
         material.SetTexture("_BlueNoise", blueNoise);
         material.SetFloat("noise_strength", noiseStrength);
         material.SetInt("noise_size", Mathf.Max(blueNoise.width, blueNoise.height));
@@ -96,12 +122,48 @@ public class CloudVolume : MonoBehaviour
         material.SetTexture("_CloudInfoTexture", cloudInfo);
     }
 
+    void InitializeDetailSettings() {
+        detailSettings = new CloudDetailGenerator.DetailSettings {
+            detailResolution = this.detailResolution,
+            seed = this.seed,
+            r_frequency_perlin = this.r_frequency_perlin,
+            r_octaves_perlin = this.r_octaves_perlin,
+            r_persistance_perlin = this.r_persistance_perlin,
+            r_frequency_worley = this.r_frequency_worley,
+            r_octaves_worley = this.r_octaves_worley,
+            r_persistance_worley = this.r_persistance_worley,
+            g_frequency = this.g_frequency,
+            g_octaves = this.g_octaves,
+            g_persistance = this.g_persistance,
+            b_frequency = this.b_frequency,
+            b_octaves = this.b_octaves,
+            b_persistance = this.b_persistance,
+            a_frequency = this.a_frequency,
+            a_octaves = this.a_octaves,
+            a_persistance = this.a_persistance
+        };
+    }
+
+    void OnValidate() {
+        if (setup) {
+            setup = false;
+            Start();
+        }
+        if(update) {
+            update = false;
+            SetMaterialProperties();
+        }
+        if (auto) {
+            SetMaterialProperties();
+        }
+    }
+
     Mesh DefaultCube() {
         Mesh mesh = new Mesh();
         List<Vector3> verts = new List<Vector3>();
-        for(float x = -0.5f; x <= 0.5f; x++) {
-            for(float y = -0.5f; y <= 0.5f; y++) {
-                for(float z = -0.5f; z <= 0.5f; z++) {
+        for (float x = -0.5f; x <= 0.5f; x++) {
+            for (float y = -0.5f; y <= 0.5f; y++) {
+                for (float z = -0.5f; z <= 0.5f; z++) {
                     verts.Add(new Vector3(x, y, z));
                 }
             }
@@ -121,20 +183,6 @@ public class CloudVolume : MonoBehaviour
         mesh.RecalculateBounds();
         mesh.RecalculateTangents();
         return mesh;
-    }
-
-    void OnValidate() {
-        if (setup) {
-            setup = false;
-            Start();
-        }
-        if(update) {
-            update = false;
-            SetMaterialProperties();
-        }
-        if (auto) {
-            SetMaterialProperties();
-        }
     }
 
 }
