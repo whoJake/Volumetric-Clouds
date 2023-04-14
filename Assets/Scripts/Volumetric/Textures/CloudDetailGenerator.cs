@@ -31,7 +31,7 @@ public static class CloudDetailGenerator {
     public static RenderTexture CreateDetailTexture(DetailSettings s) {
         RenderTexture r_Perlin = PerlinGen.Generate3DFractalGPU(s.detailResolution, s.seed, s.r_octaves_perlin, s.r_frequency_perlin, s.r_persistance_perlin);
         RenderTexture r_Worley = WorleyGen.Generate3DFractalGPU(s.detailResolution, s.seed + 1, s.r_octaves_worley, s.r_frequency_worley, s.r_persistance_worley);
-        RenderTexture r_Channel = AdditiveCombine(r_Perlin, r_Worley);
+        RenderTexture r_Channel = AdditiveCombine(r_Perlin, r_Worley, 0.5f);
 
         RenderTexture g_Channel = WorleyGen.Generate3DFractalGPU(s.detailResolution, s.seed + 2, s.g_octaves, s.g_frequency, s.g_persistance);
         RenderTexture b_Channel = WorleyGen.Generate3DFractalGPU(s.detailResolution, s.seed + 3, s.b_octaves, s.b_frequency, s.b_persistance);
@@ -51,11 +51,11 @@ public static class CloudDetailGenerator {
 
     private static ComputeShader additiveCompute = Resources.Load<ComputeShader>("AdditiveCombine");
 
-    public static RenderTexture AdditiveCombine(RenderTexture source, RenderTexture destination) {
+    public static RenderTexture AdditiveCombine(RenderTexture source, RenderTexture destination, float blend) {
 
         additiveCompute.SetTexture(0, "_Source", source);
         additiveCompute.SetTexture(0, "_Destination", destination);
-        additiveCompute.SetFloat("blend", 0.5f);
+        additiveCompute.SetFloat("blend", blend);
 
         int threads = Mathf.CeilToInt(source.width / 8f);
 

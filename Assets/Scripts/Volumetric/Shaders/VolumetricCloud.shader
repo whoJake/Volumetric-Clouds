@@ -62,10 +62,10 @@ Shader "Volumetric/Cloud"
             //Steps are visible using current occlusion method
             //Fading result on edge of bounding box to avoid sharp cutoffs
             //Attempt to get working for point lights rather than just 1 directional light
-            //Work on remapping with cloud coverage textures instead of simply multiplication
             //Investigate fps problems at higher coverage values
-
-            //Remapping the height -> Nubis Slide 29
+            //Make further tweeks to variables and clean up files a bit
+            //Add different kinds of wind movement such as swirling
+            //See if adjustments can be made in regards to density as it seems a bit off atm
 
 
             //Uniforms
@@ -84,7 +84,14 @@ Shader "Volumetric/Cloud"
             float world_tex_size;
             float3 cloud_scale;
             float3 cloud_offset;
-            float cloud_coverage_threshold;
+
+            float3 wind_speed;
+            float3 disturbance_speed;
+
+            float density_modifier;
+            float coverage_modifier;
+            float shape_modifier;
+            float noise_to_drawn_blend;
 
             float3 cloud_detail_scale;
             float3 cloud_detail_offset;
@@ -103,10 +110,10 @@ Shader "Volumetric/Cloud"
             float depthTextureDistance;
 
             float remap(float val, float oa, float ob, float na, float nb){
-                float od = ob - oa;
-                float nd = nb - na;
-                float of = (val - oa) / od;
-                return na + nd * of;
+                float a = val - oa;
+                float b = nb - na;
+                float c = ob - oa;
+                return na + (a * b) / c;
             }
 
             void CalculateDepthTextureDistance(float2 uv){
@@ -131,30 +138,64 @@ Shader "Volumetric/Cloud"
                 float3 worldTexCornerMin = boxCentre - (float3(world_tex_size, world_tex_size, world_tex_size) / 2);
                 float3 worldTexCornerMax = worldTexCornerMin + float3(world_tex_size, world_tex_size, world_tex_size);
 
-                return (pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin);
+                return frac((pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin));
             }
 
             float SampleDensity(float3 worldPos){
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
+                sampleWorldPos += _Time * wind_speed;
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
 
-                float3 sampleDetailWorldPos = (worldPos * cloud_detail_scale) + cloud_detail_offset;
-                float4 sampleDetailTexPos = float4(WorldSpaceToSamplePos(sampleDetailWorldPos), 0);
-                //Texture has wrapmode set to Repeat so can have the GPU do the UV Coordinate wrapping itself
+                //Coverage map samples
+                float4 sampleCoveragePos = float4(sampleTexPos.xz, 0, 0);
+                float3 coverageTexture = tex2Dlod(_CloudInfoTexture, sampleCoveragePos);
+                float lowCoverage = coverageTexture.r;
+                float highCoverage = coverageTexture.g;
 
-                //Need to change this mapping as it has horrible artifacting and doesn't have great effects
-                float cloudCoverageValue = tex2Dlod(_CloudInfoTexture, float4(sampleTexPos.xz, 0, 0)).r;
-                float cloudHeightDensityValue = tex2Dlod(_CloudInfoTexture, float4(sampleTexPos.xy, 0, 0)).g;
-                float4 cloudShapeValue = tex3Dlod(_CloudTexture, sampleDetailTexPos);
+                //Max height samples
+                float maxHeight = coverageTexture.b;
+
+                //Detail noise samples
+                float3 sampleDetailWorldPos = (worldPos * cloud_detail_scale) + cloud_detail_offset;
+                sampleDetailWorldPos += _Time * disturbance_speed;
+                float4 sampleDetailTexPos = float4(WorldSpaceToSamplePos(sampleDetailWorldPos), 0);
+                float4 shapeNoiseTexture = tex3Dlod(_CloudTexture, sampleDetailTexPos);
+
+                //VIEW AS CARVING OUT CLOUDS RATHER THAN BUILDING THEM OUT
 
                 //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
                 //FUNCTION 11
-                float cloudDetailVal = remap(cloudShapeValue.r, (cloudShapeValue.g * 0.625 + cloudShapeValue.b * 0.25 + cloudShapeValue.a * 0.125) - 1, 1, 0, 1);
+                float shapeNoise = shapeNoiseTexture.r + shapeNoiseTexture.g * 0.625 + shapeNoiseTexture.b * 0.25 + shapeNoiseTexture.a * 0.125;
+                shapeNoise *= 0.5;
+                shapeNoise = 1 / shapeNoise;
+                shapeNoise = saturate(shapeNoise - shape_modifier);
+                //shapeNoise += 0.5;
 
-                //Something like this?
-                float value = remap(cloudDetailVal, cloudCoverageValue, 1, 0, 1);
+                //Carves out noise from the coverage map to give the clouds a better shape than can be artisted
+                float coverage = remap(lowCoverage, saturate(highCoverage - noise_to_drawn_blend), 1, 0, 1);
 
-                return saturate(value - cloud_coverage_threshold);
+                //Height tapering towards the top
+                float heightPercent = (worldPos.y - boxmin.y * cloud_scale.y) / (boxmax.y * cloud_scale.y - boxmin.y * cloud_scale.y);
+                //Will return negative numbers if not in range 0-0.07 so the saturate ensures they stay at one
+                float bottomTaper = saturate(remap(heightPercent, 0, 0.1, 1, 0));
+                float topTaper = saturate(remap(heightPercent, maxHeight * 0.2, maxHeight, 0, 1));
+                float heightModifier = bottomTaper * topTaper;
+
+                //Density tapering towards top
+                float densityTaperA = heightPercent * saturate(remap(heightPercent, 0, 0.05, 0, 1));
+                float densityTaperB = saturate(remap(heightPercent, maxHeight * 0.75, maxHeight, 1, 0)); //If above % of maxheight then reverse lerp
+                float densityModifier = densityTaperA * densityTaperB * density_modifier;
+
+                //float value = saturate(remap(saturate(coverage - coverage_modifier), heightModifier, 1, 0, 1));
+                float value = saturate(coverage - coverage_modifier);
+                value = saturate(remap(value, heightModifier, 1, 0, 1));
+                value *= densityModifier;
+                value = saturate(value - shapeNoise);
+                value = saturate(remap(value, shapeNoise, 1, 0, 1));
+
+                //float value = saturate(coverage - coverage_modifier) * heightModifier * densityModifier;
+                //value = saturate(remap(value, shapeNoise, 1, 0, 1));
+                return value * 0.25;
             }
 
             float SampleNoise(float2 screenUV){

@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 [RequireComponent(typeof(MeshRenderer))]
@@ -49,11 +50,21 @@ public class CloudVolume : MonoBehaviour
     public Vector3 cloudScale = Vector3.one;
     public Vector3 cloudOffset;
 
+    [Header("Movement")]
+    public Vector3 windSpeed;
+    public Vector3 disturbance;
+
     [Header("Detail")]
     public Vector3 cloudDetailScale = Vector3.one;
     public Vector3 cloudDetailOffset = Vector3.one;
     [Range(0f, 1f)]
-    public float cloudCoverage;
+    public float noiseToDrawnBlend;
+    [Min(0f)]
+    public float densityModifier;
+    [Range(0f, 1f)]
+    public float coverageModifier;
+    [Range(1f, 2f)]
+    public float shapeModifier;
 
     public int steps;
     public float stepIncrement;
@@ -107,7 +118,12 @@ public class CloudVolume : MonoBehaviour
         material.SetVector("cloud_detail_scale", cloudDetailScale);
         material.SetVector("cloud_offset", cloudOffset);
         material.SetVector("cloud_detail_offset", cloudDetailOffset);
-        material.SetFloat("cloud_coverage_threshold", cloudCoverage);
+        material.SetVector("wind_speed", windSpeed);
+        material.SetVector("disturbance_speed", disturbance);
+        material.SetFloat("noise_to_drawn_blend", noiseToDrawnBlend);
+        material.SetFloat("density_modifier", densityModifier);
+        material.SetFloat("coverage_modifier", 1 - (coverageModifier * 2));
+        material.SetFloat("shape_modifier", shapeModifier);
         material.SetVector("boxmin", boxmin);
         material.SetVector("boxmax", boxmax);
         material.SetInt("view_steps", steps);
