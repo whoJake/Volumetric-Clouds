@@ -63,7 +63,7 @@ public class CloudVolume : MonoBehaviour
     public float densityModifier;
     [Range(0f, 1f)]
     public float coverageModifier;
-    [Range(1f, 2f)]
+    [Range(0f, 1f)]
     public float shapeModifier;
 
     public int steps;
@@ -124,8 +124,8 @@ public class CloudVolume : MonoBehaviour
         material.SetVector("disturbance_speed", disturbance);
         material.SetFloat("noise_to_drawn_blend", noiseToDrawnBlend);
         material.SetFloat("density_modifier", densityModifier);
-        material.SetFloat("coverage_modifier", 1 - (coverageModifier * 2));
-        material.SetFloat("shape_modifier", shapeModifier);
+        material.SetFloat("coverage_modifier", coverageModifier);
+        material.SetFloat("shape_modifier", 1 - shapeModifier);
         material.SetVector("boxmin", boxmin);
         material.SetVector("boxmax", boxmax);
         material.SetInt("view_steps", steps);

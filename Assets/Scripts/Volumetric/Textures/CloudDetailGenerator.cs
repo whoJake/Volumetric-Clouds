@@ -56,6 +56,7 @@ public static class CloudDetailGenerator {
         additiveCompute.SetTexture(0, "_Source", source);
         additiveCompute.SetTexture(0, "_Destination", destination);
         additiveCompute.SetFloat("blend", blend);
+        additiveCompute.SetFloat("multiply", 1f);
 
         int threads = Mathf.CeilToInt(source.width / 8f);
 

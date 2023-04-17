@@ -171,10 +171,10 @@ Shader "Volumetric/Cloud"
                 //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
                 //FUNCTION 11
                 float shapeNoise = shapeNoiseTexture.r + shapeNoiseTexture.g * 0.625 + shapeNoiseTexture.b * 0.25 + shapeNoiseTexture.a * 0.125;
-                shapeNoise *= 0.5;
-                shapeNoise = 1 / shapeNoise;
+                shapeNoise *= 0.5; //Should re-normalize
+                
+                shapeNoise = 1 - shapeNoise; //Invert
                 shapeNoise = saturate(shapeNoise - shape_modifier);
-                //shapeNoise += 0.5;
 
                 //Carves out noise from the coverage map to give the clouds a better shape than can be artisted
                 float coverage = remap(lowCoverage, saturate(highCoverage - noise_to_drawn_blend), 1, 0, 1);
@@ -192,15 +192,16 @@ Shader "Volumetric/Cloud"
                 float densityModifier = densityTaperA * densityTaperB * density_modifier;
 
                 //float value = saturate(remap(saturate(coverage - coverage_modifier), heightModifier, 1, 0, 1));
-                float value = saturate(coverage - coverage_modifier);
-                value = saturate(remap(value, heightModifier, 1, 0, 1));
-                value *= densityModifier;
-                value = saturate(value - shapeNoise); //DOUBLE SHAPE NOISE??????? INVESTINGATE TOMRWWWW <--------------------------------------------------------------------------------------------------------
-                value = saturate(remap(value, shapeNoise, 1, 0, 1));
-
-                //float value = saturate(coverage - coverage_modifier) * heightModifier * densityModifier;
+                float value;// = coverage;
+                //value = saturate(remap(value, heightModifier, 1, 0, 1));
+                //value = saturate(value * densityModifier);
                 //value = saturate(remap(value, shapeNoise, 1, 0, 1));
-                return value * 0.25;
+
+                value = saturate(remap(coverage - coverage_modifier, shapeNoise, 1, 0, 1) * densityModifier);
+
+                //value *= density_modifier;
+;
+                return value;
             }
 
             float SampleNoise(float2 screenUV){

@@ -326,13 +326,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   target: {fileID: 8400000, guid: 619c50fe8ff048940bbb455ba628c306, type: 2}
   detailResolution: 1024
-  seed: 62
-  r_frequency_perlin: 1
-  r_octaves_perlin: 1
-  r_persistance_perlin: 0
-  r_frequency_worley: 4
-  r_octaves_worley: 3
-  r_persistance_worley: 0.5
+  seed: 7236
+  r_frequency_perlin: 4
+  r_octaves_perlin: 4
+  r_persistance_perlin: 0.75
+  r_frequency_worley: 2
+  r_octaves_worley: 4
+  r_persistance_worley: 0.65
+  multiply: 1
   generate: 0
   save: 0
 --- !u!1 &1342626925

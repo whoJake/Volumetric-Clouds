@@ -17,6 +17,8 @@ public class Worley : Generator {
     public int r_octaves_worley;
     public float r_persistance_worley;
 
+    public float multiply;
+
     public bool generate = false;
     public bool save = false;
 
@@ -70,6 +72,7 @@ public class Worley : Generator {
         additiveCompute.SetTexture(1, "_Source2D", source);
         additiveCompute.SetTexture(1, "_Destination2D", destination);
         additiveCompute.SetFloat("blend", blend);
+        additiveCompute.SetFloat("multiply", multiply);
 
         int threads = Mathf.CeilToInt(source.width / 8f);
 
