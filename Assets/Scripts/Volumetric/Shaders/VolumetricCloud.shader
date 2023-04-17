@@ -66,7 +66,10 @@ Shader "Volumetric/Cloud"
             //Make further tweeks to variables and clean up files a bit
             //Add different kinds of wind movement such as swirling
             //See if adjustments can be made in regards to density as it seems a bit off atm
-
+            //Add backstepping to dynamic stepsize algorithm
+            //Work on height altering density equations
+            //Implement detail noise so features can be blended from top to bottom for better effects
+            //Disable random writes on textures (may improve performance)
 
             //Uniforms
             float3 boxmin;
@@ -137,13 +140,15 @@ Shader "Volumetric/Cloud"
                 float3 boxCentre = boxmin + ((boxmax - boxmin) / 2);
                 float3 worldTexCornerMin = boxCentre - (float3(world_tex_size, world_tex_size, world_tex_size) / 2);
                 float3 worldTexCornerMax = worldTexCornerMin + float3(world_tex_size, world_tex_size, world_tex_size);
+                
 
-                return frac((pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin));
+                //Frac is done by GPU
+                return (pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin);
             }
 
             float SampleDensity(float3 worldPos){
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
-                sampleWorldPos += _Time * wind_speed;
+                sampleWorldPos += _Time.y * wind_speed;
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
 
                 //Coverage map samples
@@ -157,7 +162,7 @@ Shader "Volumetric/Cloud"
 
                 //Detail noise samples
                 float3 sampleDetailWorldPos = (worldPos * cloud_detail_scale) + cloud_detail_offset;
-                sampleDetailWorldPos += _Time * disturbance_speed;
+                sampleDetailWorldPos += _Time.y * disturbance_speed;
                 float4 sampleDetailTexPos = float4(WorldSpaceToSamplePos(sampleDetailWorldPos), 0);
                 float4 shapeNoiseTexture = tex3Dlod(_CloudTexture, sampleDetailTexPos);
 
@@ -190,7 +195,7 @@ Shader "Volumetric/Cloud"
                 float value = saturate(coverage - coverage_modifier);
                 value = saturate(remap(value, heightModifier, 1, 0, 1));
                 value *= densityModifier;
-                value = saturate(value - shapeNoise);
+                value = saturate(value - shapeNoise); //DOUBLE SHAPE NOISE??????? INVESTINGATE TOMRWWWW <--------------------------------------------------------------------------------------------------------
                 value = saturate(remap(value, shapeNoise, 1, 0, 1));
 
                 //float value = saturate(coverage - coverage_modifier) * heightModifier * densityModifier;
@@ -279,6 +284,7 @@ Shader "Volumetric/Cloud"
 
                 float currentStepDst = initialDst;
                 float currentStepSize = initialStepSize;
+                int backStep = 0;
 
                 // <= doesnt work here for some reason, while loop never finishes have no idea why currentStepDst would get stuck at maxRayLength
                 while(currentStepDst < maxRayLength){
@@ -294,9 +300,19 @@ Shader "Volumetric/Cloud"
                     if(density == 0){
                         currentStepSize += step_inc;
                         currentStepDst += currentStepSize;
+                        backStep = 1;
                         continue;
                     }
                     
+                    //Backstep
+                    if(backStep == 1){
+                        currentStepDst -= currentStepSize - initialStepSize;
+                        densitySamplePos = origin + (dir * currentStepDst);
+                        density = SampleDensity(densitySamplePos);
+                        backStep = 0;
+                    }
+                    
+
                     float3 lightDir = _WorldSpaceLightPos0.xyz;
                     float2 lightBoxInfo = RayBoxIntersect(boxmin, boxmax, densitySamplePos, 1/lightDir);
                     float lightTransmittance = TakeLightSteps(densitySamplePos, lightDir, lightBoxInfo.y, light_steps);

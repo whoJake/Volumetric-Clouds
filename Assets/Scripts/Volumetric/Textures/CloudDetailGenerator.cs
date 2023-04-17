@@ -37,7 +37,7 @@ public static class CloudDetailGenerator {
         RenderTexture b_Channel = WorleyGen.Generate3DFractalGPU(s.detailResolution, s.seed + 3, s.b_octaves, s.b_frequency, s.b_persistance);
         RenderTexture a_Channel = WorleyGen.Generate3DFractalGPU(s.detailResolution, s.seed + 4, s.a_octaves, s.a_frequency, s.a_persistance);
 
-        RenderTexture detailTexure = ChannelCombine(r_Channel, g_Channel, b_Channel, a_Channel);
+        RenderTexture detailTexture = ChannelCombine(r_Channel, g_Channel, b_Channel, a_Channel);
 
         //Cleanup
         r_Perlin.Release();
@@ -46,7 +46,7 @@ public static class CloudDetailGenerator {
         b_Channel.Release();
         a_Channel.Release();
 
-        return detailTexure;
+        return detailTexture;
     }
 
     private static ComputeShader additiveCompute = Resources.Load<ComputeShader>("AdditiveCombine");
