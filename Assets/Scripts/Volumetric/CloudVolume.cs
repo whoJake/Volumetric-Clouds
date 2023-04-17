@@ -87,6 +87,8 @@ public class CloudVolume : MonoBehaviour
     public float outScatterWeight;
     [Range(0, 1f)]
     public float scatterBlend;
+    [Range(0f, 1f)]
+    public float lightBanding;
 
     [Header("Toggles")]
     public bool setup;
@@ -135,6 +137,7 @@ public class CloudVolume : MonoBehaviour
         material.SetFloat("in_scatter_g", inScatterWeight);
         material.SetFloat("out_scatter_g", outScatterWeight);
         material.SetFloat("scatter_blend", scatterBlend);
+        material.SetFloat("light_banding", lightBanding);
         material.SetTexture("_CloudTexture", cloudDetailTexture);
         material.SetTexture("_BlueNoise", blueNoise);
         material.SetFloat("noise_strength", noiseStrength);

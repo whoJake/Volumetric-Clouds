@@ -66,10 +66,8 @@ Shader "Volumetric/Cloud"
             //Make further tweeks to variables and clean up files a bit
             //Add different kinds of wind movement such as swirling
             //See if adjustments can be made in regards to density as it seems a bit off atm
-            //Add backstepping to dynamic stepsize algorithm
             //Work on height altering density equations
             //Implement detail noise so features can be blended from top to bottom for better effects
-            //Disable random writes on textures (may improve performance)
 
             //Uniforms
             float3 boxmin;
@@ -108,6 +106,8 @@ Shader "Volumetric/Cloud"
             float in_scatter_g;
             float out_scatter_g;
             float scatter_blend;
+
+            float light_banding;
 
             //Globals
             float depthTextureDistance;
@@ -328,7 +328,14 @@ Shader "Volumetric/Cloud"
                     currentStepDst += currentStepSize;
                 }
                 
-                return float2(transmittance, lightEnergy);
+                float bandedLight;
+                if(light_banding == 0){
+                    bandedLight = lightEnergy;
+                }else{
+                    bandedLight = lightEnergy - (lightEnergy % light_banding);
+                }
+
+                return float2(transmittance, bandedLight);
             }
 
             fixed4 frag (v2f i, UNITY_VPOS_TYPE vpos : VPOS) : SV_Target
