@@ -1,0 +1,11 @@
+#pragma kernel CSMain
+
+RWTexture3D<float4> _Source;
+RWStructuredBuffer<float4> _Destination;
+float3 dims;
+
+[numthreads(8,8,8)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    _Destination[id.x + id.y * dims.x + id.z * dims.y] = _Source[id.xyz];
+}

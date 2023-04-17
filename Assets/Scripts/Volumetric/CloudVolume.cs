@@ -61,7 +61,7 @@ public class CloudVolume : MonoBehaviour
     public float noiseToDrawnBlend;
     [Min(0f)]
     public float densityModifier;
-    [Range(0f, 1f)]
+    [Range(-1f, 1f)]
     public float coverageModifier;
     [Range(0f, 1f)]
     public float shapeModifier;

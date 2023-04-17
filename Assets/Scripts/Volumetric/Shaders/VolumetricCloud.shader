@@ -73,7 +73,6 @@ Shader "Volumetric/Cloud"
             float3 boxmin;
             float3 boxmax;
 
-            #define MAX_STEPS 64
             int view_steps;
             int light_steps;
             float step_inc;
@@ -187,15 +186,11 @@ Shader "Volumetric/Cloud"
                 float heightModifier = bottomTaper * topTaper;
 
                 //Density tapering towards top
-                float densityTaperA = heightPercent * saturate(remap(heightPercent, 0, 0.05, 0, 1));
+                float densityTaperA = heightPercent * saturate(remap(heightPercent, 0, maxHeight * 0.05, 0, 1));
                 float densityTaperB = saturate(remap(heightPercent, maxHeight * 0.75, maxHeight, 1, 0)); //If above % of maxheight then reverse lerp
                 float densityModifier = densityTaperA * densityTaperB * density_modifier;
 
-                //float value = saturate(remap(saturate(coverage - coverage_modifier), heightModifier, 1, 0, 1));
-                float value;// = coverage;
-                //value = saturate(remap(value, heightModifier, 1, 0, 1));
-                //value = saturate(value * densityModifier);
-                //value = saturate(remap(value, shapeNoise, 1, 0, 1));
+                float value;
 
                 value = saturate(remap(coverage - coverage_modifier, shapeNoise, 1, 0, 1) * densityModifier);
 
@@ -266,11 +261,13 @@ Shader "Volumetric/Cloud"
                     currentStepPos += stepVec;
                 }
 
-                float energy = exp(-totalDensity);
+                //float energy = exp(-totalDensity);
+
                 //Idea from
                 //https://advances.realtimerendering.com/s2017/Nubis%20-%20Authoring%20Realtime%20Volumetric%20Cloudscapes%20with%20the%20Decima%20Engine%20-%20Final%20.pdf
                 //Slide 85
-                //float energy = max(exp(-totalDensity), (exp(-totalDensity * 0.25) * 0.7));
+                //Helps highlight the sun highlights
+                float energy = max(exp(-totalDensity), (exp(-totalDensity * 0.25) * 0.6));
                 return energy;
             }
 

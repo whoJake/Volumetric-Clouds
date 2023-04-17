@@ -50,6 +50,7 @@ public class Worley : Generator {
         RenderTexture worley = WorleyGen.Generate2DFractalGPU(detailResolution, seed + 1, r_octaves_worley, r_frequency_worley, r_persistance_worley);
 
         RenderTexture perlinWorley = AdditiveCombine2D(perlin, worley, 0.5f);
+        perlinWorley = CloudDetailGenerator.AdjustRange2D(perlinWorley);
         return perlinWorley;
     }
 

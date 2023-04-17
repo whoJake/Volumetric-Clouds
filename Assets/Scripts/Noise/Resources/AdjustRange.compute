@@ -1,0 +1,31 @@
+#pragma kernel Adjust2D
+#pragma kernel Adjust3D
+
+float4 max;
+float4 min;
+
+float remap01(float val, float oldMin, float oldMax){
+    float a = val - oldMin;
+    float r = oldMax - oldMin;
+    return a / r;
+}
+
+float4 adjust(float4 val){
+    return float4(remap01(val.x, min.x, max.x), remap01(val.y, min.y, max.y), remap01(val.z, min.z, max.z), remap01(val.w, min.w, max.w));
+}
+
+RWTexture2D<float4> _Target2D;
+
+[numthreads(8,8,1)]
+void Adjust2D (uint3 id : SV_DispatchThreadID)
+{
+    _Target2D[id.xy] = adjust(_Target2D[id.xy]);
+}
+
+RWTexture3D<float4> _Target3D;
+
+[numthreads(8,8,8)]
+void Adjust3D (uint3 id : SV_DispatchThreadID)
+{
+    _Target3D[id.xyz] = adjust(_Target3D[id.xyz]);
+}

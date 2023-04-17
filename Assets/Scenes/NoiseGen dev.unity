@@ -326,7 +326,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   target: {fileID: 8400000, guid: 619c50fe8ff048940bbb455ba628c306, type: 2}
   detailResolution: 1024
-  seed: 7236
+  seed: 74
   r_frequency_perlin: 4
   r_octaves_perlin: 4
   r_persistance_perlin: 0.75

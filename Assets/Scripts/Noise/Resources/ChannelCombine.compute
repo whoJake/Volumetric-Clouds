@@ -1,0 +1,13 @@
+#pragma kernel Combine
+
+RWTexture3D<float4> _Destination;
+RWTexture3D<float> _Red;
+RWTexture3D<float> _Blue;
+RWTexture3D<float> _Green;
+RWTexture3D<float> _Alpha;
+
+[numthreads(8,8,8)]
+void Combine (uint3 id : SV_DispatchThreadID)
+{
+    _Destination[id.xyz] = float4(_Red[id.xyz], _Blue[id.xyz], _Green[id.xyz], _Alpha[id.xyz]);
+}
