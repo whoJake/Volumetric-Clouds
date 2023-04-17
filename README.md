@@ -2,14 +2,12 @@
 [WIP] Everything needed to author and display volumetric clouds. This includes generating the tileable noise textures needed.
 Everything from the noise generation to the cloud rendering raymarcher is written from scratch.
 
-Latest screenshot. Brownian Perlin noise generated on the GPU. Theres no combination of Perlin and Worley noise yet. TODO List is in VolumetricCloud.shader
+## Latest showcase
 
-Screenshots taken just after implementation of Henyey-Greenstein scattering which increases the intensity of the lighting in pixels that are facing the sun. The theory behind this has to do with light having more chance to scatter forwards rather than being uniformly scattered.
+Cloud shape is a combination of Perlin-Worley noise and several layers of worley noise. Coverage map is provided by a texture aswell as the max cloud height. Lots of dials to change such as density, coverage, noise values, wind speed and disturbance speed.
 
-![progress20230408 hgscattering](https://user-images.githubusercontent.com/37589250/230717815-2c0cd6b0-9ccf-4b88-a0bb-db04dafcd164.png)
+### Short gif of clouds rolling overhead
+![showcase20230414 1](https://user-images.githubusercontent.com/37589250/232048468-074831f2-8ef0-46d1-b0ea-053f7cb74027.gif)
 
-![progress20230408](https://user-images.githubusercontent.com/37589250/230717801-77db7b91-58c7-4d16-b95b-de6e72a25699.png)
-
-## Some more pictures from experimentations using textures to control cloud coverage and height density probability
-
-![progress20230411 artistic](https://user-images.githubusercontent.com/37589250/231141512-b67adf18-69fd-4bca-a14f-d2dc85ae2110.png)
+### Short gif of same angle but with a more noticable coverage map to show off this feature
+![showcase20230414 2](https://user-images.githubusercontent.com/37589250/232048566-43e82d71-7892-4eeb-94c5-4732b2cd069f.gif)
