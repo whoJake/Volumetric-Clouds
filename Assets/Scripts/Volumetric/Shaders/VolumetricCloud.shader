@@ -21,6 +21,9 @@ Shader "Volumetric/Cloud"
             #include "UnityCG.cginc"
             #include "Lighting.cginc"
 
+            //Helper functions
+            //-----------------------------------------------------------------
+
             //Fixed distorted clipping issues thanks to this code
             //I dont really understand it but thank god it exists
             //https://forum.unity.com/threads/understanding-worldspaceviewdir-incorrect-weird-values.1272374/
@@ -28,16 +31,31 @@ Shader "Volumetric/Cloud"
             float4 _CameraDepthTexture_TexelSize;
             float getRawDepth(float2 uv) { return SAMPLE_DEPTH_TEXTURE_LOD(_CameraDepthTexture, float4(uv, 0.0, 0.0)); }
      
-            // inspired by keijiro's depth inverse projection
-            // https://github.com/keijiro/DepthInverseProjection
-            // constructs view space ray at the far clip plane from the screen uv
-            // then multiplies that ray by the linear 01 depth
+            //Same as above
             float3 viewSpacePosAtScreenUV(float2 uv)
             {
                 float3 viewSpaceRay = mul(unity_CameraInvProjection, float4(uv * 2.0 - 1.0, 1.0, 1.0) * _ProjectionParams.z);
                 float rawDepth = getRawDepth(uv);
                 return viewSpaceRay * Linear01Depth(rawDepth);
             }
+
+            float remap(float val, float newA, float newB, float oldA, float oldB){
+                float a = val - newA;
+                float b = oldB - oldA;
+                float c = newB - newA;
+                return newA + (a * b) / c;
+            }
+            
+            //Equation from
+            //https://omlc.org/classroom/ece532/class3/hg.html
+            float hgScatter(float cosA, float g){
+                float g2 = g * g;
+                //return ((1 - g2) / pow(1 + g2 - 2 * g * cosA, 1.5)) / 4 * 3.1415;
+
+                //Rearanged to have only one float division
+                return ((1.0 - g2) * 3.1415) / (pow(1.0 + g2 - 2.0 * g * cosA, 1.5) * 4.0);
+            }
+
             //-------------------------------------------------------------------
      
 
@@ -62,62 +80,59 @@ Shader "Volumetric/Cloud"
             //Steps are visible using current occlusion method
             //Fading result on edge of bounding box to avoid sharp cutoffs
             //Attempt to get working for point lights rather than just 1 directional light
-            //Investigate fps problems at higher coverage values
-            //Make further tweeks to variables and clean up files a bit
             //Add different kinds of wind movement such as swirling
             //See if adjustments can be made in regards to density as it seems a bit off atm
             //Work on height altering density equations
             //Implement detail noise so features can be blended from top to bottom for better effects
 
             //Uniforms
-            float3 boxmin;
-            float3 boxmax;
-
-            int view_steps;
-            int light_steps;
-            float step_inc;
-            fixed4 _ShadowColor;
-            float light_strength;
-            float shadow_cutoff;
-
-            sampler3D _CloudTexture;
-            float world_tex_size;
+            //Shape noise
             float3 cloud_scale;
             float3 cloud_offset;
 
-            float3 wind_speed;
-            float3 disturbance_speed;
+            sampler3D _CloudTexture;
+            float world_tex_size;
+            float3 cloud_detail_scale;
+            float3 cloud_detail_offset;
 
+            //Ray marching
+            float3 bounds_min;
+            float3 bounds_max;
+            int view_steps;
+            int light_steps;
+            float step_inc;
+
+            //Highlights and shadows
+            fixed4 _ShadowColor;
+            float light_strength;
+            float shadow_cutoff;
+            float light_banding;
+
+            float in_scatter_g;
+            float out_scatter_g;
+            float scatter_blend;
+            
+            //Blue noise
+            sampler2D _BlueNoise;
+            int noise_size;
+            float noise_strength;
+
+            //Modifiers
+            sampler2D _CoverageMap;
             float density_modifier;
             float coverage_modifier;
             float shape_modifier;
             float noise_to_drawn_blend;
 
-            float3 cloud_detail_scale;
-            float3 cloud_detail_offset;
+            //Movement
+            float3 wind_speed;
+            float3 disturbance_speed;
 
-            sampler2D _CloudInfoTexture;
-
-            sampler2D _BlueNoise;
-            int noise_size;
-            float noise_strength;
-
-            float in_scatter_g;
-            float out_scatter_g;
-            float scatter_blend;
-
-            float light_banding;
 
             //Globals
             float depthTextureDistance;
 
-            float remap(float val, float oa, float ob, float na, float nb){
-                float a = val - oa;
-                float b = nb - na;
-                float c = ob - oa;
-                return na + (a * b) / c;
-            }
-
+            //Sets depthTextureDistance for this pixel
             void CalculateDepthTextureDistance(float2 uv){
                 float3 viewPixelPos = viewSpacePosAtScreenUV(uv);
                 float3 worldPixelPos = mul(unity_CameraToWorld, float4(viewPixelPos.xy, -viewPixelPos.z, 1.0)).xyz;
@@ -136,7 +151,7 @@ Shader "Volumetric/Cloud"
 
             float3 WorldSpaceToSamplePos(float3 pos){
                 //centres texture on middle of volume
-                float3 boxCentre = boxmin + ((boxmax - boxmin) / 2);
+                float3 boxCentre = bounds_min + ((bounds_max - bounds_min) / 2);
                 float3 worldTexCornerMin = boxCentre - (float3(world_tex_size, world_tex_size, world_tex_size) / 2);
                 float3 worldTexCornerMax = worldTexCornerMin + float3(world_tex_size, world_tex_size, world_tex_size);
                 
@@ -147,12 +162,12 @@ Shader "Volumetric/Cloud"
 
             float SampleDensity(float3 worldPos){
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
-                sampleWorldPos += _Time.y * wind_speed;
+                sampleWorldPos += _CosTime.w * disturbance_speed;
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
 
                 //Coverage map samples
                 float4 sampleCoveragePos = float4(sampleTexPos.xz, 0, 0);
-                float3 coverageTexture = tex2Dlod(_CloudInfoTexture, sampleCoveragePos);
+                float3 coverageTexture = tex2Dlod(_CoverageMap, sampleCoveragePos);
                 float lowCoverage = coverageTexture.r;
                 float highCoverage = coverageTexture.g;
 
@@ -161,40 +176,31 @@ Shader "Volumetric/Cloud"
 
                 //Detail noise samples
                 float3 sampleDetailWorldPos = (worldPos * cloud_detail_scale) + cloud_detail_offset;
-                sampleDetailWorldPos += _Time.y * disturbance_speed;
+                sampleDetailWorldPos += _Time.y * wind_speed;
                 float4 sampleDetailTexPos = float4(WorldSpaceToSamplePos(sampleDetailWorldPos), 0);
                 float4 shapeNoiseTexture = tex3Dlod(_CloudTexture, sampleDetailTexPos);
 
                 //VIEW AS CARVING OUT CLOUDS RATHER THAN BUILDING THEM OUT
 
-                //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
-                //FUNCTION 11
+                //I prefer regular FBM for this shapeNoise isntead of the remap method suggested in 'below'
+                //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf Function 11
                 float shapeNoise = shapeNoiseTexture.r + shapeNoiseTexture.g * 0.625 + shapeNoiseTexture.b * 0.25 + shapeNoiseTexture.a * 0.125;
-                shapeNoise *= 0.5; //Should re-normalize
+                shapeNoise *= 0.5; // re-normalize
                 
                 shapeNoise = 1 - shapeNoise; //Invert
                 shapeNoise = saturate(shapeNoise - shape_modifier);
 
                 //Carves out noise from the coverage map to give the clouds a better shape than can be artisted
                 float coverage = remap(lowCoverage, saturate(highCoverage - noise_to_drawn_blend), 1, 0, 1);
-
-                //Height tapering towards the top
-                float heightPercent = (worldPos.y - boxmin.y * cloud_scale.y) / (boxmax.y * cloud_scale.y - boxmin.y * cloud_scale.y);
-                //Will return negative numbers if not in range 0-0.07 so the saturate ensures they stay at one
-                float bottomTaper = saturate(remap(heightPercent, 0, 0.1, 1, 0));
-                float topTaper = saturate(remap(heightPercent, maxHeight * 0.2, maxHeight, 0, 1));
-                float heightModifier = bottomTaper * topTaper;
-
+                float heightPercent = (worldPos.y - bounds_min.y * cloud_scale.y) / (bounds_max.y * cloud_scale.y - bounds_min.y * cloud_scale.y);
+                
                 //Density tapering towards top
                 float densityTaperA = heightPercent * saturate(remap(heightPercent, 0, maxHeight * 0.05, 0, 1));
                 float densityTaperB = saturate(remap(heightPercent, maxHeight * 0.75, maxHeight, 1, 0)); //If above % of maxheight then reverse lerp
                 float densityModifier = densityTaperA * densityTaperB * density_modifier;
 
                 float value;
-
                 value = saturate(remap(coverage - coverage_modifier, shapeNoise, 1, 0, 1) * densityModifier);
-
-                //value *= density_modifier;
 ;
                 return value;
             }
@@ -207,16 +213,6 @@ Shader "Volumetric/Cloud"
                 return noise;
             }
 
-            //Equation from
-            //https://omlc.org/classroom/ece532/class3/hg.html
-            float hgScatter(float cosA, float g){
-                float g2 = g * g;
-                //return ((1 - g2) / pow(1 + g2 - 2 * g * cosA, 1.5)) / 4 * 3.1415;
-
-                //Rearanged to have only one float division
-                return ((1.0 - g2) * 3.1415) / (pow(1.0 + g2 - 2.0 * g * cosA, 1.5) * 4.0);
-            }
-            
             //Only doing one hgScatter makes everything darker so we also apply an 
             //outscatter towards the sun in order to brighten up facing away from sun areas
             //Idea also used in https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
@@ -229,9 +225,9 @@ Shader "Volumetric/Cloud"
 
             //Returns (distToBox, dstThroughBox) taken from https://github.com/SebLague/Clouds/blob/master/Assets/Scripts/Clouds/Shaders/Clouds.shader
             //Which was adapted from http://jcgt.org/published/0007/03/04/
-            float2 RayBoxIntersect(float3 boxmin, float3 boxmax, float3 rayOrigin, float3 invRayDir){
-                float3 t0 = (boxmin - rayOrigin) * invRayDir;
-                float3 t1 = (boxmax - rayOrigin) * invRayDir;
+            float2 RayBoxIntersect(float3 minBounds, float3 maxBounds, float3 rayOrigin, float3 invRayDir){
+                float3 t0 = (minBounds - rayOrigin) * invRayDir;
+                float3 t1 = (maxBounds - rayOrigin) * invRayDir;
                 float3 tmin = min(t0, t1);
                 float3 tmax = max(t0, t1);
                 
@@ -260,9 +256,6 @@ Shader "Volumetric/Cloud"
                     totalDensity += density * stepSize * light_strength;
                     currentStepPos += stepVec;
                 }
-
-                //float energy = exp(-totalDensity);
-
                 //Idea from
                 //https://advances.realtimerendering.com/s2017/Nubis%20-%20Authoring%20Realtime%20Volumetric%20Cloudscapes%20with%20the%20Decima%20Engine%20-%20Final%20.pdf
                 //Slide 85
@@ -312,7 +305,7 @@ Shader "Volumetric/Cloud"
                     
 
                     float3 lightDir = _WorldSpaceLightPos0.xyz;
-                    float2 lightBoxInfo = RayBoxIntersect(boxmin, boxmax, densitySamplePos, 1/lightDir);
+                    float2 lightBoxInfo = RayBoxIntersect(bounds_min, bounds_max, densitySamplePos, 1/lightDir);
                     float lightTransmittance = TakeLightSteps(densitySamplePos, lightDir, lightBoxInfo.y, light_steps);
 
                     //Was having trouble with this since its rearranged from exp(-totalDensity)
@@ -346,7 +339,7 @@ Shader "Volumetric/Cloud"
                 float3 rayOrigin = _WorldSpaceCameraPos;
                 float3 rayDir = normalize(vecToPixel);
 
-                float2 boxinfo = RayBoxIntersect(boxmin, boxmax, rayOrigin, 1/rayDir);
+                float2 boxinfo = RayBoxIntersect(bounds_min, bounds_max, rayOrigin, 1/rayDir);
 
                 CalculateDepthTextureDistance(screenUV);
 
@@ -354,21 +347,17 @@ Shader "Volumetric/Cloud"
                 //Calls clip() so will avoid taking steps if it doesnt have to
                 ManualZTestBox(boxinfo.x);
 
-                //Trying this, I don't think the results were really acceptable. It got rid of the visible layering you get from having a low sample rate but it was so overpowering.
-                //I think there may be a way to afterwards, use the same noise to denoise the image but as is, the results are bad
-                //float3 blueNoiseOffset = SampleBlue(vpos.xy * boxinfo.y);
-
-                float cosA = dot(rayDir, _WorldSpaceLightPos0.xyz);
-                float phaseValue = phase(cosA);
-
                 //applying blue noise offset makes really large step sizes look noisy rather than distorted
                 //noise is * by steplength so is more noticable on larger step lengths but that is where it helps the most
                 float blueNoise = SampleNoise(vpos.xy) * 2 - 1;
                 float stepSize = boxinfo.y / view_steps;
                 float noiseOffset = stepSize * blueNoise * noise_strength;
 
-
                 float2 cloudInfo = TakeViewSteps(rayOrigin + rayDir * boxinfo.x, rayDir, noiseOffset, boxinfo.y, view_steps);
+                
+                float cosA = dot(rayDir, _WorldSpaceLightPos0.xyz);
+                float phaseValue = phase(cosA);
+
                 float lightEnergy = cloudInfo.y * phaseValue;
 
                 fixed3 highlightColor = _LightColor0.xyz;

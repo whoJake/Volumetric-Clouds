@@ -43,52 +43,43 @@ public class CloudVolume : MonoBehaviour
     [Space]
     [Space]
 
-    [Header("Cloud Textures")]
-    public Texture2D cloudInfo;
-
-    [Header("Rendering")]
+    [Header("Shape")]
     public Vector3 cloudScale = Vector3.one;
     public Vector3 cloudOffset;
+
+    public Vector3 cloudDetailScale = Vector3.one;
+    public Vector3 cloudDetailOffset = Vector3.one;
+
+    [Header("Ray Marching")]
+    public int detailSteps;
+    public int lightSteps;
+    public float stepIncrement;
+
+    [Header("Lighting and Shadows")]
+    public Color shadowColor;
+    [Range(0f, 3f)] public float lightStrength;
+    [Range(0f, 1f)] public float shadowCutoffThreshold;
+    [Range(0f, 1f)] public float lightBanding;
+
+    [Range(0f, 1f)] public float inScatterWeight;
+    [Range(0f, 1f)] public float outScatterWeight;
+    [Range(0f, 1f)] public float scatterBlend;
+
+    [Header("Blue Noise")]
+    public Texture2D blueNoise;
+    [Range(0f, 1f)] public float noiseStrength;
+
+    [Header("Modifiers")]
+    public Texture2D coverageMap;
+    [Min(0f)] public float densityModifier;
+    [Range(-1f, 1f)] public float coverageModifier;
+    [Range(0f, 1f)] public float shapeModifier;
+    [Range(0f, 1f)] public float noiseToDrawnBlend;
 
     [Header("Movement")]
     public Vector3 windSpeed;
     public Vector3 disturbance;
 
-    [Header("Detail")]
-    public Vector3 cloudDetailScale = Vector3.one;
-    public Vector3 cloudDetailOffset = Vector3.one;
-    [Range(0f, 1f)]
-    public float noiseToDrawnBlend;
-    [Min(0f)]
-    public float densityModifier;
-    [Range(-1f, 1f)]
-    public float coverageModifier;
-    [Range(0f, 1f)]
-    public float shapeModifier;
-
-    public int steps;
-    public float stepIncrement;
-
-    [Header("Noise")]
-    public Texture2D blueNoise;
-    [Range(0f, 1f)]
-    public float noiseStrength;
-
-    [Header("Lighting")]
-    public int lightSteps;
-    public Color shadowColor;
-    [Range(0f, 3f)]
-    public float lightStrength;
-    [Range(0f, 1f)]
-    public float shadowCutoffThreshold;
-    [Range(0, 1f)]
-    public float inScatterWeight;
-    [Range(0, 1f)]
-    public float outScatterWeight;
-    [Range(0, 1f)]
-    public float scatterBlend;
-    [Range(0f, 1f)]
-    public float lightBanding;
 
     [Header("Toggles")]
     public bool setup;
@@ -113,38 +104,44 @@ public class CloudVolume : MonoBehaviour
     void SetMaterialProperties() {
 
         //Get minmax bounds
-        Vector3 boxmin = transform.position - (transform.localScale / 2f);
-        Vector3 boxmax = transform.position + (transform.localScale / 2f);
+        Vector3 minBounds = transform.position - (transform.localScale / 2f);
+        Vector3 maxBounds = transform.position + (transform.localScale / 2f);
 
         material.SetVector("cloud_scale", cloudScale);
-        material.SetVector("cloud_detail_scale", cloudDetailScale);
         material.SetVector("cloud_offset", cloudOffset);
+
+        material.SetTexture("_CloudTexture", cloudDetailTexture);
+        material.SetFloat("world_tex_size", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
+        material.SetVector("cloud_detail_scale", cloudDetailScale);
         material.SetVector("cloud_detail_offset", cloudDetailOffset);
-        material.SetVector("wind_speed", windSpeed);
-        material.SetVector("disturbance_speed", disturbance);
-        material.SetFloat("noise_to_drawn_blend", noiseToDrawnBlend);
-        material.SetFloat("density_modifier", densityModifier);
-        material.SetFloat("coverage_modifier", coverageModifier);
-        material.SetFloat("shape_modifier", 1 - shapeModifier);
-        material.SetVector("boxmin", boxmin);
-        material.SetVector("boxmax", boxmax);
-        material.SetInt("view_steps", steps);
+
+        material.SetVector("bounds_min", minBounds);
+        material.SetVector("bounds_max", maxBounds);
+        material.SetInt("view_steps", detailSteps);
         material.SetInt("light_steps", lightSteps);
         material.SetFloat("step_inc", stepIncrement);
+
         material.SetColor("_ShadowColor", shadowColor);
-        material.SetFloat("light_strength", 1/lightStrength);
+        material.SetFloat("light_strength", 1 / lightStrength);
         material.SetFloat("shadow_cutoff", shadowCutoffThreshold);
+        material.SetFloat("light_banding", lightBanding);
+
         material.SetFloat("in_scatter_g", inScatterWeight);
         material.SetFloat("out_scatter_g", outScatterWeight);
         material.SetFloat("scatter_blend", scatterBlend);
-        material.SetFloat("light_banding", lightBanding);
-        material.SetTexture("_CloudTexture", cloudDetailTexture);
+
         material.SetTexture("_BlueNoise", blueNoise);
         material.SetFloat("noise_strength", noiseStrength);
         material.SetInt("noise_size", Mathf.Max(blueNoise.width, blueNoise.height));
-        material.SetFloat("world_tex_size", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
 
-        material.SetTexture("_CloudInfoTexture", cloudInfo);
+        material.SetTexture("_CoverageMap", coverageMap);
+        material.SetFloat("density_modifier", densityModifier);
+        material.SetFloat("coverage_modifier", coverageModifier);
+        material.SetFloat("shape_modifier", 1 - shapeModifier);
+        material.SetFloat("noise_to_drawn_blend", noiseToDrawnBlend);
+
+        material.SetVector("wind_speed", windSpeed);
+        material.SetVector("disturbance_speed", disturbance);
     }
 
     void InitializeDetailSettings() {
