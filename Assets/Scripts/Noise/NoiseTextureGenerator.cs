@@ -4,7 +4,9 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class Worley : Generator {
+public class NoiseTextureGenerator : MonoBehaviour { 
+
+    public RenderTexture target;
 
     public int detailResolution;
     public int seed;
