@@ -39,11 +39,11 @@ Shader "Volumetric/Cloud"
                 return viewSpaceRay * Linear01Depth(rawDepth);
             }
 
-            float remap(float val, float newA, float newB, float oldA, float oldB){
-                float a = val - newA;
-                float b = oldB - oldA;
-                float c = newB - newA;
-                return newA + (a * b) / c;
+            float remap(float val, float oldA, float oldB, float newA, float newB){
+                float a = val - oldA;
+                float b = newB - newA;
+                float c = oldB - oldA;
+                return oldA + (a * b) / c;
             }
             
             //Equation from
@@ -81,9 +81,8 @@ Shader "Volumetric/Cloud"
             //Fading result on edge of bounding box to avoid sharp cutoffs
             //Attempt to get working for point lights rather than just 1 directional light
             //Add different kinds of wind movement such as swirling
-            //See if adjustments can be made in regards to density as it seems a bit off atm
-            //Work on height altering density equations
             //Implement detail noise so features can be blended from top to bottom for better effects
+            //Try adding objects that repel clouds as could be very useful
 
             //Uniforms
             //Shape noise
@@ -155,14 +154,14 @@ Shader "Volumetric/Cloud"
                 float3 worldTexCornerMin = boxCentre - (float3(world_tex_size, world_tex_size, world_tex_size) / 2);
                 float3 worldTexCornerMax = worldTexCornerMin + float3(world_tex_size, world_tex_size, world_tex_size);
                 
-
                 //Frac is done by GPU
                 return (pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin);
             }
 
             float SampleDensity(float3 worldPos){
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
-                sampleWorldPos += _CosTime.w * disturbance_speed;
+                //sampleWorldPos += _CosTime.w * disturbance_speed;
+                sampleWorldPos += _Time.y * disturbance_speed;
                 float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
 
                 //Coverage map samples
@@ -193,14 +192,20 @@ Shader "Volumetric/Cloud"
                 //Carves out noise from the coverage map to give the clouds a better shape than can be artisted
                 float coverage = remap(lowCoverage, saturate(highCoverage - noise_to_drawn_blend), 1, 0, 1);
                 float heightPercent = (worldPos.y - bounds_min.y * cloud_scale.y) / (bounds_max.y * cloud_scale.y - bounds_min.y * cloud_scale.y);
+                float cloudHeightPercent = saturate(remap(heightPercent, 0, maxHeight, 0, 1));
                 
-                //Density tapering towards top
-                float densityTaperA = heightPercent * saturate(remap(heightPercent, 0, maxHeight * 0.05, 0, 1));
-                float densityTaperB = saturate(remap(heightPercent, maxHeight * 0.75, maxHeight, 1, 0)); //If above % of maxheight then reverse lerp
+                //Shapes the cloud by making the noise more powerful at certain heights
+                float heightTaperA = saturate(remap(1 - cloudHeightPercent, 0, 0.6, 0.75, 1)); //Top
+                float heightTaperB = saturate(remap(cloudHeightPercent, 0, 0.1, 0.75, 1)); //Bottom
+                float heightModifier = saturate(heightTaperA * heightTaperB); //saturate just incase :3
+                heightModifier = 1 - heightModifier;
+
+                //Density falloff towards top and bottom
+                float densityTaperA = saturate(remap(1 - cloudHeightPercent, 0, 0.7, 0, 1)); //Modify the top density
+                float densityTaperB = saturate(remap(cloudHeightPercent, 0, 0.2, 0, 1)); //Modify bottom density
                 float densityModifier = densityTaperA * densityTaperB * density_modifier;
 
-                float value;
-                value = saturate(remap(coverage - coverage_modifier, shapeNoise, 1, 0, 1) * densityModifier);
+                float value = saturate(remap(coverage - coverage_modifier, shapeNoise * heightModifier, 1, 0, 1) * densityModifier);
 ;
                 return value;
             }
