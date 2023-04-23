@@ -11,3 +11,6 @@ Cloud shape is a combination of Perlin-Worley noise and several layers of worley
 
 ### Short gif of same angle but with a more noticable coverage map to show off this feature
 ![showcase20230414 2](https://user-images.githubusercontent.com/37589250/232048566-43e82d71-7892-4eeb-94c5-4732b2cd069f.gif)
+
+### Newer screenshot of high quality render (bad fps)
+![progress20230423](https://user-images.githubusercontent.com/37589250/233832635-2331e9a2-65cd-497e-ae51-0673e7bda215.png)
