@@ -80,6 +80,10 @@ public class CloudVolume : MonoBehaviour
     public Vector3 windSpeed;
     public Vector3 disturbance;
 
+    public Vector2 spiralCentre;
+    public float spiralPeriod;
+    private Vector4 rotationParameters;
+
 
     [Header("Toggles")]
     public bool setup;
@@ -142,6 +146,19 @@ public class CloudVolume : MonoBehaviour
 
         material.SetVector("wind_speed", windSpeed);
         material.SetVector("disturbance_speed", disturbance);
+        rotationParameters = new Vector4(spiralCentre.x, spiralCentre.y, Mathf.Cos((Time.time * spiralPeriod) * Mathf.Deg2Rad), Mathf.Sin((Time.time * spiralPeriod) * Mathf.Deg2Rad));
+        material.SetVector("rotation_parameters", rotationParameters);
+    }
+
+    void Update() {
+        if (spiralPeriod != 0) {
+            float transformedAngle = (Time.time * 360f * spiralPeriod * Mathf.Deg2Rad) % (2 * Mathf.PI);
+            rotationParameters = new Vector4(spiralCentre.x, spiralCentre.y, Mathf.Cos(transformedAngle), Mathf.Sin(transformedAngle));
+            material.SetVector("rotation_parameters", rotationParameters);
+        } else {
+            rotationParameters = new Vector4(spiralCentre.x, spiralCentre.y, 1f, 0f);
+            material.SetVector("rotation_parameters", rotationParameters);
+        }
     }
 
     void InitializeDetailSettings() {

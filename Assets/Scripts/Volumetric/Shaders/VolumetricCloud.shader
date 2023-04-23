@@ -127,6 +127,8 @@ Shader "Volumetric/Cloud"
             float3 wind_speed;
             float3 disturbance_speed;
 
+            float4 rotation_parameters; // x = centre.x | y = centre.y | z = cos(angle) | w = sin(angle)
+
 
             //Globals
             float depthTextureDistance;
@@ -159,6 +161,16 @@ Shader "Volumetric/Cloud"
             }
 
             float SampleDensity(float3 worldPos){
+                //Perform rotation if nessisary rotation_parameters.z represents cos(theta) and rotation_parameters.w represents sin(theta)
+                
+                if(!(rotation_parameters.z == 1 && rotation_parameters.w == 0)){
+                    worldPos = float3(worldPos.x - rotation_parameters.x, worldPos.y, worldPos.z - rotation_parameters.y);
+                    worldPos = float3(worldPos.x * rotation_parameters.z - worldPos.z * rotation_parameters.w,
+                                      worldPos.y,
+                                      worldPos.z * rotation_parameters.z + worldPos.x * rotation_parameters.w);
+                }
+                
+
                 float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
                 //sampleWorldPos += _CosTime.w * disturbance_speed;
                 sampleWorldPos += _Time.y * disturbance_speed;
