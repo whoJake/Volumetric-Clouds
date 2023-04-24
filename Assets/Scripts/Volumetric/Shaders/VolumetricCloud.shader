@@ -77,12 +77,13 @@ Shader "Volumetric/Cloud"
             }
 
             //TO DO LIST
-            //Steps are visible using current occlusion method
             //Fading result on edge of bounding box to avoid sharp cutoffs
             //Attempt to get working for point lights rather than just 1 directional light
-            //Add different kinds of wind movement such as swirling
             //Implement detail noise so features can be blended from top to bottom for better effects
             //Try adding objects that repel clouds as could be very useful
+
+            //Definitions
+            #define DEG2RAD 0.01745
 
             //Uniforms
             //Shape noise
@@ -127,7 +128,7 @@ Shader "Volumetric/Cloud"
             float3 wind_speed;
             float3 disturbance_speed;
 
-            float4 rotation_parameters; // x = centre.x | y = centre.y | z = cos(angle) | w = sin(angle)
+            float4 rotation_parameters; // x = centre.x | y = centre.y | z = rotation speed | w = radius
 
 
             //Globals
@@ -163,11 +164,25 @@ Shader "Volumetric/Cloud"
             float SampleDensity(float3 worldPos){
                 //Perform rotation if nessisary rotation_parameters.z represents cos(theta) and rotation_parameters.w represents sin(theta)
                 
-                if(!(rotation_parameters.z == 1 && rotation_parameters.w == 0)){
+                if(rotation_parameters.z != 0){
+                    float dstToEye = distance(worldPos.xz, rotation_parameters.xy);
+                    float radiusWeight = 1 - saturate(dstToEye / rotation_parameters.w);
+
+
+                    //angle has to be between 0 -> 2pi
+                    //Speed that angle climbs is time * rotation_parameters.z
+                    //For next time I work on it actually swirling, lerping between 0 and angle inside radius does not work as it will forever keep tangling itself up
+                    //This means that it eventualy will become a tangled mess (bad) so some other method needs to be implemented
+                    //Maybe different bands that rotate within themselves, no lerping can be done
+                    float deg = _Time.x * rotation_parameters.z;
+                    float angle = deg * DEG2RAD;
+                    float cosAngle = cos(angle);
+                    float sinAngle = sin(angle);
+
                     worldPos = float3(worldPos.x - rotation_parameters.x, worldPos.y, worldPos.z - rotation_parameters.y);
-                    worldPos = float3(worldPos.x * rotation_parameters.z - worldPos.z * rotation_parameters.w,
+                    worldPos = float3(worldPos.x * cosAngle - worldPos.z * sinAngle,
                                       worldPos.y,
-                                      worldPos.z * rotation_parameters.z + worldPos.x * rotation_parameters.w);
+                                      worldPos.z * cosAngle + worldPos.x * sinAngle);
                 }
                 
 
