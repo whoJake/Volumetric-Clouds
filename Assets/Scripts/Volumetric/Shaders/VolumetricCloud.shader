@@ -81,6 +81,7 @@ Shader "Volumetric/Cloud"
             //Attempt to get working for point lights rather than just 1 directional light
             //Implement detail noise so features can be blended from top to bottom for better effects
             //Try adding objects that repel clouds as could be very useful
+            //Change windspeed and disturbance so that it isnt effected by scale (in C#)
 
             //Definitions
             #define DEG2RAD 0.01745
@@ -89,9 +90,14 @@ Shader "Volumetric/Cloud"
             //Shape noise
             float3 cloud_scale;
             float3 cloud_offset;
-
-            sampler3D _CloudTexture;
+            
             float world_tex_size;
+
+            sampler3D _CloudShapeTexture;
+            float3 cloud_shape_scale;
+            float3 cloud_shape_offset;
+
+            sampler3D _CloudDetailTexture;
             float3 cloud_detail_scale;
             float3 cloud_detail_offset;
 
@@ -151,11 +157,13 @@ Shader "Volumetric/Cloud"
                 clip(depthTextureDistance - boxdst);
             }
 
-            float3 WorldSpaceToSamplePos(float3 pos){
+            float3 WorldSpaceToSamplePos(float3 pos, float3 scale, float3 offset, float3 box){
+                pos = (pos * scale) + offset;
+
                 //centres texture on middle of volume
                 float3 boxCentre = bounds_min + ((bounds_max - bounds_min) / 2);
-                float3 worldTexCornerMin = boxCentre - (float3(world_tex_size, world_tex_size, world_tex_size) / 2);
-                float3 worldTexCornerMax = worldTexCornerMin + float3(world_tex_size, world_tex_size, world_tex_size);
+                float3 worldTexCornerMin = boxCentre - (box / 2);
+                float3 worldTexCornerMax = worldTexCornerMin + box;
                 
                 //Frac is done by GPU
                 return (pos - worldTexCornerMin) / (worldTexCornerMax - worldTexCornerMin);
@@ -186,10 +194,12 @@ Shader "Volumetric/Cloud"
                 }
                 
 
-                float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
+                float3 worldTexBox = float3(world_tex_size, world_tex_size, world_tex_size);
+
+                //float3 sampleWorldPos = (worldPos * cloud_scale) + cloud_offset;
                 //sampleWorldPos += _CosTime.w * disturbance_speed;
-                sampleWorldPos += _Time.y * disturbance_speed;
-                float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos), 0);
+                float3 sampleWorldPos = worldPos + _Time.y * disturbance_speed;
+                float4 sampleTexPos = float4(WorldSpaceToSamplePos(sampleWorldPos, float3(cloud_scale.x, 1, cloud_scale.z), float3(cloud_offset.x, 1, cloud_offset.z), worldTexBox), 0);
 
                 //Coverage map samples
                 float4 sampleCoveragePos = float4(sampleTexPos.xz, 0, 0);
@@ -200,13 +210,11 @@ Shader "Volumetric/Cloud"
                 //Max height samples
                 float maxHeight = coverageTexture.b;
 
-                //Detail noise samples
-                float3 sampleDetailWorldPos = (worldPos * cloud_detail_scale) + cloud_detail_offset;
-                sampleDetailWorldPos += _Time.y * wind_speed;
-                float4 sampleDetailTexPos = float4(WorldSpaceToSamplePos(sampleDetailWorldPos), 0);
-                float4 shapeNoiseTexture = tex3Dlod(_CloudTexture, sampleDetailTexPos);
-
-                //VIEW AS CARVING OUT CLOUDS RATHER THAN BUILDING THEM OUT
+                //Shape noise samples
+                //float3 sampleShapeWorldPos = (worldPos * cloud_shape_scale) + cloud_shape_offset;
+                float3 sampleShapeWorldPos = worldPos + _Time.y * wind_speed;
+                float4 sampleShapeTexPos = float4(WorldSpaceToSamplePos(sampleShapeWorldPos, cloud_shape_scale, cloud_shape_offset, worldTexBox), 0);
+                float4 shapeNoiseTexture = tex3Dlod(_CloudShapeTexture, sampleShapeTexPos);
 
                 //I prefer regular FBM for this shapeNoise isntead of the remap method suggested in 'below'
                 //https://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf Function 11

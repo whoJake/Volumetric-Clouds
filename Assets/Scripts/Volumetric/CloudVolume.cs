@@ -12,9 +12,9 @@ public class CloudVolume : MonoBehaviour
 
     [Space]
     
-    [Header("Cloud Texture Creation")]
-    public int detailResolution;
-    public int seed;
+    [Header("Cloud Shape Texture")]
+    public int shapeResolution;
+    public int shapeSeed;
     [Header("Perlin-Worley R Channel")]
     [Header("Perlin")]
     public int r_frequency_perlin;
@@ -38,17 +38,17 @@ public class CloudVolume : MonoBehaviour
     public float a_persistance;
 
     private CloudDetailGenerator.DetailSettings detailSettings;
-    private RenderTexture cloudDetailTexture;
+    private RenderTexture cloudShapeTexture;
 
     [Space]
     [Space]
 
     [Header("Shape")]
     public Vector3 cloudScale = Vector3.one;
-    public Vector3 cloudOffset;
+    public Vector3 cloudOffset = Vector3.zero;
 
-    public Vector3 cloudDetailScale = Vector3.one;
-    public Vector3 cloudDetailOffset = Vector3.one;
+    public Vector3 cloudShapeScale = Vector3.one;
+    public Vector3 cloudShapeOffset = Vector3.zero;
 
     [Header("Ray Marching")]
     public int detailSteps;
@@ -98,7 +98,7 @@ public class CloudVolume : MonoBehaviour
 
         //Generate cloud detail texture
         InitializeDetailSettings();
-        cloudDetailTexture = CloudDetailGenerator.CreateDetailTexture(detailSettings);
+        cloudShapeTexture = CloudDetailGenerator.CreateDetailTexture(detailSettings);
 
         material = new Material(shader);
 
@@ -115,10 +115,10 @@ public class CloudVolume : MonoBehaviour
         material.SetVector("cloud_scale", cloudScale);
         material.SetVector("cloud_offset", cloudOffset);
 
-        material.SetTexture("_CloudTexture", cloudDetailTexture);
         material.SetFloat("world_tex_size", Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z));
-        material.SetVector("cloud_detail_scale", cloudDetailScale);
-        material.SetVector("cloud_detail_offset", cloudDetailOffset);
+        material.SetTexture("_CloudShapeTexture", cloudShapeTexture);
+        material.SetVector("cloud_shape_scale", cloudShapeScale);
+        material.SetVector("cloud_shape_offset", cloudShapeOffset);
 
         material.SetVector("bounds_min", minBounds);
         material.SetVector("bounds_max", maxBounds);
@@ -153,8 +153,8 @@ public class CloudVolume : MonoBehaviour
 
     void InitializeDetailSettings() {
         detailSettings = new CloudDetailGenerator.DetailSettings {
-            detailResolution = this.detailResolution,
-            seed = this.seed,
+            detailResolution = this.shapeResolution,
+            seed = this.shapeSeed,
             r_frequency_perlin = this.r_frequency_perlin,
             r_octaves_perlin = this.r_octaves_perlin,
             r_persistance_perlin = this.r_persistance_perlin,
