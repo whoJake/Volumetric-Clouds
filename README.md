@@ -1,5 +1,5 @@
 # Volumetric-Clouds
-[WIP] Everything needed to author and display volumetric clouds. This includes generating the tileable noise textures needed.
+Everything needed to author and display volumetric clouds. This includes generating the tileable noise textures needed.
 Everything from the noise generation to the cloud rendering raymarcher is written from scratch.
 
 ## Latest showcase
